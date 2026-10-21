@@ -1,0 +1,5 @@
+module COctriConverter [system] {
+  header "include/octri_converter.h"
+  link "octri_converter_ffi"
+  export *
+}

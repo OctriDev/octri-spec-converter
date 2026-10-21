@@ -1,0 +1,50 @@
+{
+  "name": "octri-spec-converter-workspace",
+  "version": "0.1.2",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "check": "node scripts/cargo.mjs test --workspace",
+    "build:node": "node scripts/build-node.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:bindings": "node scripts/build-bindings.mjs",
+    "test:bindings": "node scripts/test-bindings.mjs",
+    "format:check": "prettier --check '**/*.{mjs,cjs,ts,css,html,json,md,yml,yaml}'",
+    "test:node": "node scripts/test-node.mjs",
+    "test:corpus": "node --test scripts/test-launch-corpus.mjs",
+    "test:json": "node --test scripts/test-json.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
+    "test:wasm:node": "node scripts/test-wasm-node.mjs",
+    "test:ui": "node web/browser-test.mjs",
+    "test:ui:controller": "node --test web/app-test.mjs web/files-test.mjs",
+    "preview": "node web/serve.mjs",
+    "pack:web": "node scripts/package-web.mjs",
+    "verify:vendor": "node scripts/verify-vendor.mjs",
+    "notices": "node scripts/notices.mjs",
+    "test:package": "node scripts/test-package.mjs",
+    "pack:bindings": "node scripts/pack-bindings.mjs",
+    "test:binding-packages": "node scripts/test-binding-packages.mjs",
+    "test:host": "node web/host-test.mjs",
+    "test:host:contract": "node --test web/host-contract-test.mjs"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "12.1.0",
+    "@axe-core/playwright": "4.14.0",
+    "ajv": "8.20.0",
+    "playwright": "1.64.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/octridev/octri-spec-converter.git"
+  },
+  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "bugs": {
+    "url": "https://github.com/octridev/octri-spec-converter/issues"
+  }
+}

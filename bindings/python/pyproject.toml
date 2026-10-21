@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "octri-spec-converter"
+version = "0.1.0"
+description = "Python bindings for the offline Octri Rust Spec Converter"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+license-files = ["LICENSE", "OAI-LICENSE", "THIRD-PARTY-NOTICES.md"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+Repository = "https://github.com/octridev/octri-spec-converter"
+Issues = "https://github.com/octridev/octri-spec-converter/issues"

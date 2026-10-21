@@ -1,0 +1,74 @@
+name: Converter qualification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  rust-node:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/verify-vendor.mjs
+      - run: node scripts/cargo.mjs fmt --all -- --check
+      - run: node scripts/cargo.mjs clippy --workspace --all-targets --locked -- -D warnings
+      - run: node scripts/cargo.mjs test --workspace --locked
+      - run: npm run build:node
+      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: npm run test:json
+      - run: npm run test:ui:controller
+      - run: npm run test:node
+      - run: npm run test:corpus
+      - run: node --test scripts/test-action.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: converter-launch-corpus-${{ matrix.os }}
+          path: artifacts/qualification/launch-corpus.json
+          retention-days: 7
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - run: npm ci --ignore-scripts
+      - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - run: npm run build:wasm
+      - run: npm run build:node
+      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:wasm:node
+      - run: npm run test:browser
+      - run: npm run test:ui
+      - run: npm run test:host
+      - run: npm run notices
+      - run: npm run test:package
+      - run: npm run pack:web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: converter-browser-evidence
+          path: artifacts/browser/
+          retention-days: 7
+  native-languages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: docker build --build-arg OCTRI_TARGET_ARCH=amd64 -f Dockerfile.bindings -t octri-converter-bindings:ci .
+      - run: docker run --rm octri-converter-bindings:ci

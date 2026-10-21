@@ -1,0 +1,594 @@
+[
+  {
+    "name": "get-request-name-and-url",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "List pets",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List pets",
+      "/paths/~1pets/get/servers/0/url": "https://api.example.com",
+      "/paths/~1pets/get/security": []
+    }
+  },
+  {
+    "name": "patch-method-and-description",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Update pet",
+          "request": {
+            "method": "PATCH",
+            "description": "Update selected fields.",
+            "url": "https://api.example.com/pets/one"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets~1one/patch/summary": "Update pet",
+      "/paths/~1pets~1one/patch/description": "Update selected fields."
+    },
+    "absent": ["/paths/~1pets~1one/post"]
+  },
+  {
+    "name": "nested-folders-become-ordered-tags",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Animals",
+          "item": [
+            {
+              "name": "Pets",
+              "item": [
+                {
+                  "name": "List",
+                  "request": {
+                    "method": "GET",
+                    "url": "https://api.example.com/pets"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "expected": { "/paths/~1pets/get/tags": ["Animals", "Pets"] }
+  },
+  {
+    "name": "collection-variable-url",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "variable": [{ "key": "base", "value": "https://api.example.com" }],
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{base}}/pets" }
+        }
+      ]
+    },
+    "expected": { "/paths/~1pets/get/servers/0/url": "https://api.example.com" }
+  },
+  {
+    "name": "supplied-environment-overrides-collection",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "variable": [
+        { "key": "base", "value": "https://collection.example.com" }
+      ],
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{base}}/pets" }
+        }
+      ]
+    },
+    "files": {
+      "environment.json": "{\"values\":[{\"key\":\"base\",\"value\":\"https://environment.example.com\",\"enabled\":true}]}"
+    },
+    "config": { "environmentUri": "environment.json" },
+    "expected": {
+      "/paths/~1pets/get/servers/0/url": "https://environment.example.com"
+    }
+  },
+  {
+    "name": "folder-variable-is-local-to-children",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "variable": [
+        { "key": "base", "value": "https://collection.example.com" }
+      ],
+      "item": [
+        {
+          "name": "Folder",
+          "variable": [
+            { "key": "base", "value": "https://folder.example.com" }
+          ],
+          "item": [
+            {
+              "name": "List",
+              "request": { "method": "GET", "url": "{{base}}/pets" }
+            }
+          ]
+        },
+        {
+          "name": "Health",
+          "request": { "method": "GET", "url": "{{base}}/health" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/servers/0/url": "https://folder.example.com",
+      "/paths/~1health/get/servers/0/url": "https://collection.example.com"
+    }
+  },
+  {
+    "name": "explicit-variable-overrides-environment-and-folder",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Folder",
+          "variable": [
+            { "key": "base", "value": "https://folder.example.com" }
+          ],
+          "item": [
+            {
+              "name": "List",
+              "request": { "method": "GET", "url": "{{base}}/pets" }
+            }
+          ]
+        }
+      ]
+    },
+    "files": {
+      "environment.json": "{\"values\":[{\"key\":\"base\",\"value\":\"https://environment.example.com\"}]}"
+    },
+    "config": {
+      "environmentUri": "environment.json",
+      "variables": { "base": "https://configured.example.com" }
+    },
+    "expected": {
+      "/paths/~1pets/get/servers/0/url": "https://configured.example.com"
+    }
+  },
+  {
+    "name": "request-noauth-overrides-collection-bearer",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "bearer", "bearer": [] },
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": "https://api.example.com/health"
+          }
+        }
+      ]
+    },
+    "expected": { "/paths/~1health/get/security": [] }
+  },
+  {
+    "name": "basic-auth-contract",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "basic", "basic": [] },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": { "type": "http", "scheme": "basic" },
+        "scopes": []
+      }
+    }
+  },
+  {
+    "name": "bearer-auth-contract",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "bearer", "bearer": [] },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": { "type": "http", "scheme": "bearer" },
+        "scopes": []
+      }
+    }
+  },
+  {
+    "name": "digest-auth-contract",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "digest", "digest": [] },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": { "type": "http", "scheme": "digest" },
+        "scopes": []
+      }
+    }
+  },
+  {
+    "name": "header-api-key-name",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          { "key": "key", "value": "X-Key" },
+          { "key": "in", "value": "header" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": { "type": "apiKey", "name": "X-Key", "in": "header" },
+        "scopes": []
+      }
+    }
+  },
+  {
+    "name": "query-api-key-name",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          { "key": "key", "value": "token" },
+          { "key": "in", "value": "query" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": { "type": "apiKey", "name": "token", "in": "query" },
+        "scopes": []
+      }
+    }
+  },
+  {
+    "name": "oauth-client-credentials-and-scope",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": {
+        "type": "oauth2",
+        "oauth2": [
+          { "key": "grant_type", "value": "client_credentials" },
+          {
+            "key": "accessTokenUrl",
+            "value": "https://auth.example.com/token"
+          },
+          { "key": "scope", "value": "pets:read pets:write" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "https://api.example.com/pets" }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/get/summary": "List"
+    },
+    "expectedSingleAuth": {
+      "/paths/~1pets/get": {
+        "scheme": {
+          "type": "oauth2",
+          "flows": {
+            "clientCredentials": {
+              "tokenUrl": "https://auth.example.com/token",
+              "scopes": { "pets:read": "", "pets:write": "" }
+            }
+          }
+        },
+        "scopes": ["pets:read", "pets:write"]
+      }
+    }
+  },
+  {
+    "name": "json-example-does-not-invent-required-or-enum",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.com/pets",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"猫\",\"age\":2}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/post/requestBody/content/application~1json/example": {
+        "name": "猫",
+        "age": 2
+      },
+      "/paths/~1pets/post/requestBody/content/application~1json/schema/properties/age/type": "integer"
+    },
+    "absent": [
+      "/paths/~1pets/post/requestBody/content/application~1json/schema/required",
+      "/paths/~1pets/post/requestBody/content/application~1json/schema/properties/name/enum"
+    ]
+  },
+  {
+    "name": "plain-text-body",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.com/notes",
+            "body": {
+              "mode": "raw",
+              "raw": "Hello 猫",
+              "options": { "raw": { "language": "text" } }
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1notes/post/requestBody/content/text~1plain/example": "Hello 猫",
+      "/paths/~1notes/post/requestBody/content/text~1plain/schema/type": "string"
+    }
+  },
+  {
+    "name": "urlencoded-active-fields-only",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.com/pets",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "name", "value": "Ada" },
+                { "key": "secret", "value": "disabled", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/name/type": "string"
+    },
+    "absent": [
+      "/paths/~1pets/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/secret"
+    ]
+  },
+  {
+    "name": "multipart-file-is-described-never-read",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Upload",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.com/photos",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": "/must-not-read/private.jpg"
+                },
+                { "key": "title", "type": "text", "value": "Portrait" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/properties/photo/type": "string",
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/properties/photo/format": "binary",
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/properties/title/type": "string"
+    },
+    "decisionCodes": ["FILE_CONTENT_NOT_READ"]
+  },
+  {
+    "name": "observed-response-status-and-json-example",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.com/pets"
+          },
+          "response": [
+            {
+              "name": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\"id\":7,\"name\":\"Ada\"}"
+            }
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets/post/responses/201/content/application~1json/example": {
+        "id": 7,
+        "name": "Ada"
+      },
+      "/paths/~1pets/post/responses/201/content/application~1json/schema/properties/id/type": "integer"
+    }
+  },
+  {
+    "name": "structured-path-query-and-disabled-header",
+    "source": {
+      "info": {
+        "name": "Pets",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+      },
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Read",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "https://api.example.com/pets/:id?ignored=1",
+              "variable": [{ "key": "id", "value": "one" }],
+              "query": [{ "key": "ignored", "value": "1", "disabled": true }]
+            },
+            "header": [
+              { "key": "X-Region", "value": "eu" },
+              { "key": "X-Ignored", "value": "off", "disabled": true }
+            ]
+          }
+        }
+      ]
+    },
+    "expected": {
+      "/paths/~1pets~1{id}/get/parameters/0/name": "id",
+      "/paths/~1pets~1{id}/get/parameters/0/in": "path",
+      "/paths/~1pets~1{id}/get/parameters/0/required": true,
+      "/paths/~1pets~1{id}/get/parameters/1/name": "X-Region",
+      "/paths/~1pets~1{id}/get/parameters/1/in": "header"
+    },
+    "absent": ["/paths/~1pets~1{id}/get/parameters/2"]
+  }
+]

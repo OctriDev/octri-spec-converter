@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Spec Converter · Octri</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#source">Skip to source</a>
+    <header>
+      <a class="brand" href="https://octri.dev" target="_blank" rel="noreferrer"
+        >Octri<span>/ Spec Converter</span></a
+      >
+      <span class="processing">Local processing · no account</span>
+    </header>
+    <main>
+      <div class="intro">
+        <div>
+          <h1>Move your spec. Keep its meaning.</h1>
+          <p>
+            Convert API formats to OpenAPI. Resolve mappings, review changes and
+            keep the evidence.
+          </p>
+        </div>
+        <button id="sample" class="secondary" disabled>
+          Load synthetic sample
+        </button>
+      </div>
+      <div class="workspace">
+        <section aria-labelledby="source-title">
+          <div class="panel-heading">
+            <h2 id="source-title">Sources</h2>
+            <label class="button secondary"
+              >Add files<input
+                id="upload"
+                type="file"
+                multiple
+                disabled /></label
+            ><label class="button secondary"
+              >Add folder<input
+                id="folder"
+                type="file"
+                webkitdirectory
+                multiple
+                disabled
+            /></label>
+          </div>
+          <label for="root">Root document</label
+          ><select id="root" disabled></select>
+          <div class="field-row">
+            <div>
+              <label for="active">Editing file</label
+              ><select id="active" disabled></select>
+            </div>
+            <button id="remove" class="secondary" disabled>Remove file</button>
+          </div>
+          <details>
+            <summary>Source identity</summary>
+            <label for="uri">Retrieval URI</label
+            ><input id="uri" type="text" spellcheck="false" disabled /><button
+              id="rename"
+              class="secondary"
+              disabled
+            >
+              Apply URI
+            </button>
+            <p class="small muted">
+              Relative references use this URI. HTTP identities grant no network
+              access.
+            </p>
+          </details>
+          <label class="source-label" for="source"
+            ><span id="source-name">source.yaml</span
+            ><span id="position">Line 1, column 1</span></label
+          >
+          <textarea
+            id="source"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            aria-describedby="limits"
+            placeholder="Paste a specification, collection, schema or cURL command…"
+            disabled
+          ></textarea>
+          <p id="limits" class="small muted">
+            5 MiB per file · 100 files · 20 MiB total. Only supplied references
+            resolve. Conversion stays on this device.
+          </p>
+          <div class="field-row">
+            <div>
+              <label for="input-format">Source format</label
+              ><select id="input-format" disabled>
+                <option value="auto">Detect automatically</option>
+              </select>
+            </div>
+            <div>
+              <label for="target">Target version</label
+              ><select id="target" disabled>
+                <option value="">Keep OpenAPI version; otherwise 3.1.2</option>
+              </select>
+            </div>
+            <div>
+              <label for="encoding">Output</label
+              ><select id="encoding" disabled>
+                <option value="json">JSON</option>
+                <option value="yaml">YAML</option>
+              </select>
+            </div>
+          </div>
+          <label class="check"
+            ><input id="bundle" type="checkbox" checked disabled /> Bundle
+            supplied references</label
+          >
+          <div class="run-row">
+            <button id="convert" class="primary" disabled>
+              Convert specification</button
+            ><button id="cancel" hidden disabled>Cancel</button>
+          </div>
+          <progress
+            id="progress"
+            aria-label="Converting specification"
+            hidden
+          ></progress>
+          <p id="status" role="status" aria-live="polite">
+            Ready for your source.
+          </p>
+          <div id="error" role="alert" hidden></div>
+          <div id="mapping-recovery" hidden>
+            <p class="small muted">
+              Saved HTTP mappings include operations absent from this source.
+              Edit them in conversion settings, or remove all saved HTTP
+              mappings to discover this source's operations. Other settings stay
+              intact.
+            </p>
+            <button id="reset-http-mappings" class="secondary" disabled>
+              Remove saved HTTP mappings and reconvert
+            </button>
+          </div>
+          <details>
+            <summary>Metadata, variables and conversion settings</summary>
+            <p class="small muted">
+              Authored settings travel with the report. HTTP mappings appear
+              below after conversion. Advanced JSON supports environments,
+              security schemes, overrides and duplicate choices.
+            </p>
+            <label for="title">API title override</label
+            ><input id="title" type="text" disabled />
+            <label for="api-version">API release version override</label
+            ><input id="api-version" type="text" disabled />
+            <label for="base-url">Server base for observed requests</label
+            ><input
+              id="base-url"
+              type="url"
+              placeholder="https://api.example.com/v1"
+              disabled
+            />
+            <label for="settings">Additional configuration (JSON object)</label
+            ><textarea
+              id="settings"
+              class="config"
+              spellcheck="false"
+              aria-describedby="settings-help"
+              disabled
+            >
+{}</textarea
+            >
+            <p id="settings-help" class="small muted">
+              Set title, apiVersion, baseUrl, variables, environmentUri,
+              environmentId, httpMappings, securitySchemes, duplicateChoices,
+              overrides, dropUnsupported or limits. Source format, target,
+              output and bundling use the controls above.
+            </p>
+            <button id="save-config" class="secondary" disabled>
+              Download configuration</button
+            ><label class="button secondary"
+              >Load configuration<input
+                id="load-config"
+                type="file"
+                accept=".json"
+                disabled
+            /></label>
+          </details>
+          <details>
+            <summary>Fetch a source URL</summary>
+            <p class="small muted">
+              Fetching makes a network request. References are never fetched
+              automatically. Browser restrictions may require downloading the
+              file and adding it above.
+            </p>
+            <label for="url">Public HTTP or HTTPS URL</label
+            ><input
+              id="url"
+              type="url"
+              placeholder="https://api.example.com/openapi.json"
+              disabled
+            /><button id="fetch" class="secondary" disabled>Fetch URL</button>
+          </details>
+          <details>
+            <summary>Batch conversion</summary>
+            <p class="small muted">
+              Choose roots to convert independently with the same settings and
+              supplied resources. Each result retains its own review state.
+            </p>
+            <div id="batch-roots"></div>
+            <button id="batch" class="secondary" disabled>
+              Convert selected roots
+            </button>
+          </details>
+          <details>
+            <summary>Portable reports and comparison</summary>
+            <label class="button secondary"
+              >Open verified report<input
+                id="load-report"
+                type="file"
+                accept=".json"
+                disabled /></label
+            ><label class="button secondary"
+              >Compare saved report<input
+                id="compare-report"
+                type="file"
+                accept=".json"
+                disabled
+            /></label>
+            <p class="small muted">
+              Saved reports include original source text. Opening, comparing and
+              exporting recompute the artifact in Rust before trusting it.
+            </p>
+          </details>
+        </section>
+        <section class="results" aria-labelledby="result-title">
+          <div class="panel-heading">
+            <h2 id="result-title">Conversion evidence</h2>
+            <span id="state" class="state">Awaiting source</span>
+          </div>
+          <p id="empty" class="empty">
+            Your converted specification and review decisions appear here.
+            Choose a target and convert to inspect fidelity.
+          </p>
+          <div id="report" hidden>
+            <p id="summary"></p>
+            <div id="checks" class="checks"></div>
+            <details>
+              <summary>Downstream readiness</summary>
+              <div id="readiness"></div>
+            </details>
+            <details>
+              <summary>Inspect converted API</summary>
+              <div id="inspection"></div>
+            </details>
+            <section
+              id="credentials"
+              hidden
+              aria-label="Request credentials"
+            ></section>
+            <div id="mappings" hidden>
+              <h3>Author HTTP mappings</h3>
+              <p class="small muted">
+                Describe your actual HTTP contract. These settings document a
+                mapping; they do not create a gateway.
+              </p>
+              <div id="mapping-list"></div>
+            </div>
+            <div class="review-heading">
+              <h3>Review decisions</h3>
+              <span id="review-count" class="muted small"></span>
+            </div>
+            <div class="field-row">
+              <div>
+                <label for="search">Search decisions</label
+                ><input id="search" type="search" disabled />
+              </div>
+              <div>
+                <label for="filter">Show</label
+                ><select id="filter" disabled>
+                  <option value="pending">Needs review</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="all">All decisions</option>
+                  <option value="reviewed">Reviewed</option>
+                </select>
+              </div>
+            </div>
+            <section
+              id="duplicates"
+              hidden
+              aria-label="Duplicate endpoints"
+            ></section>
+            <div id="decisions"></div>
+            <div id="decision-pages" class="run-row"></div>
+            <details>
+              <summary>Validation diagnostics</summary>
+              <div id="diagnostics"></div>
+            </details>
+            <div class="output-heading">
+              <h3>Converted specification</h3>
+              <span id="output-hash" class="small hash"></span>
+            </div>
+            <label class="sr-only" for="output"
+              >Converted specification text</label
+            ><textarea
+              id="output"
+              readonly
+              spellcheck="false"
+              disabled
+            ></textarea>
+            <details id="output-location" hidden>
+              <summary id="output-pointer">Selected output location</summary>
+              <pre id="output-value" tabindex="-1"></pre>
+            </details>
+            <div class="run-row">
+              <button id="download-output" class="primary" disabled>
+                Download specification</button
+              ><button id="copy-output" class="secondary" disabled>
+                Copy output
+              </button>
+            </div>
+            <div class="run-row">
+              <button id="download-report" class="secondary" disabled>
+                Download review report</button
+              ><button id="download-manifest" class="secondary" disabled>
+                Download mapping manifest</button
+              ><button id="download-html" class="secondary" disabled>
+                Download HTML report</button
+              ><button id="download-artifact" class="secondary" disabled>
+                Download portable artifact
+              </button>
+            </div>
+            <p class="small muted">
+              Reports and artifacts contain original sources, including any
+              credentials present in them. Review their contents before sharing.
+            </p>
+            <div id="handoff" hidden>
+              <button id="import" class="primary" disabled>
+                Use reviewed specification in Octri
+              </button>
+              <p id="handoff-help" class="small muted"></p>
+            </div>
+          </div>
+          <section id="batch-results" hidden aria-labelledby="batch-title">
+            <h3 id="batch-title">Batch results</h3>
+            <div id="batch-list"></div>
+            <button id="download-batch" class="secondary" disabled>
+              Download batch reports
+            </button>
+          </section>
+          <section id="comparison" hidden aria-labelledby="comparison-title">
+            <h3 id="comparison-title">Report comparison</h3>
+            <pre id="comparison-output"></pre>
+          </section>
+        </section>
+      </div>
+      <footer>
+        <p>
+          Rust conversion engine · explicit review · original sources retained
+        </p>
+        <p>
+          Non-HTTP inputs require authored mappings. Generated specifications
+          describe your chosen HTTP contract; they do not implement it.
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="./app.mjs"></script>
+  </body>
+</html>

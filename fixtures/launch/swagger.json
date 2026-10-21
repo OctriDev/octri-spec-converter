@@ -1,0 +1,550 @@
+[
+  {
+    "name": "https-server-with-base-path",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "basePath": "/v1",
+      "schemes": ["https"],
+      "paths": {
+        "/pets": {
+          "get": { "responses": { "204": { "description": "Empty" } } }
+        }
+      }
+    },
+    "expected": {
+      "/servers/0/url": "https://api.example.com/v1",
+      "/paths/~1pets/get/responses/204/description": "Empty"
+    }
+  },
+  {
+    "name": "multiple-declared-server-schemes",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https", "http"],
+      "paths": {}
+    },
+    "expected": {
+      "/servers/0/url": "https://api.example.com/",
+      "/servers/1/url": "http://api.example.com/"
+    }
+  },
+  {
+    "name": "required-json-body-reference",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "consumes": ["application/json"],
+      "definitions": {
+        "Pet": {
+          "type": "object",
+          "required": ["name"],
+          "properties": { "name": { "type": "string" } }
+        }
+      },
+      "paths": {
+        "/pets": {
+          "post": {
+            "parameters": [
+              {
+                "name": "pet",
+                "in": "body",
+                "required": true,
+                "schema": { "$ref": "#/definitions/Pet" }
+              }
+            ],
+            "responses": { "201": { "description": "Created" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/post/requestBody/required": true,
+      "/paths/~1pets/post/requestBody/content/application~1json/schema/$ref": "#/components/schemas/Pet",
+      "/components/schemas/Pet/required": ["name"]
+    }
+  },
+  {
+    "name": "nullable-string-property",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "definitions": {
+        "Pet": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "x-nullable": true, "minLength": 1 }
+          }
+        }
+      },
+      "paths": {}
+    },
+    "expected": {
+      "/components/schemas/Pet/properties/name/type": ["string", "null"],
+      "/components/schemas/Pet/properties/name/minLength": 1
+    },
+    "absent": ["/components/schemas/Pet/properties/name/x-nullable"]
+  },
+  {
+    "name": "exclusive-numeric-bounds",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "definitions": {
+        "Rating": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMinimum": true,
+          "maximum": 5,
+          "exclusiveMaximum": false,
+          "multipleOf": 0.5
+        }
+      },
+      "paths": {}
+    },
+    "expected": {
+      "/components/schemas/Rating/exclusiveMinimum": 0,
+      "/components/schemas/Rating/maximum": 5,
+      "/components/schemas/Rating/multipleOf": 0.5
+    },
+    "absent": [
+      "/components/schemas/Rating/minimum",
+      "/components/schemas/Rating/exclusiveMaximum"
+    ]
+  },
+  {
+    "name": "repeated-query-array",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "paths": {
+        "/pets": {
+          "get": {
+            "parameters": [
+              {
+                "name": "tag",
+                "in": "query",
+                "type": "array",
+                "items": { "type": "string" },
+                "collectionFormat": "multi"
+              }
+            ],
+            "responses": { "204": { "description": "Empty" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/parameters/0/name": "tag",
+      "/paths/~1pets/get/parameters/0/style": "form",
+      "/paths/~1pets/get/parameters/0/explode": true,
+      "/paths/~1pets/get/parameters/0/schema/items/type": "string"
+    }
+  },
+  {
+    "name": "comma-separated-query-array",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "paths": {
+        "/pets": {
+          "get": {
+            "parameters": [
+              {
+                "name": "ids",
+                "in": "query",
+                "type": "array",
+                "items": { "type": "integer" },
+                "collectionFormat": "csv"
+              }
+            ],
+            "responses": { "204": { "description": "Empty" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/parameters/0/style": "form",
+      "/paths/~1pets/get/parameters/0/explode": false,
+      "/paths/~1pets/get/parameters/0/schema/items/type": "integer"
+    }
+  },
+  {
+    "name": "comma-separated-header-array",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "paths": {
+        "/pets": {
+          "get": {
+            "parameters": [
+              {
+                "name": "X-Fields",
+                "in": "header",
+                "type": "array",
+                "items": { "type": "string" },
+                "collectionFormat": "csv"
+              }
+            ],
+            "responses": { "204": { "description": "Empty" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/parameters/0/in": "header",
+      "/paths/~1pets/get/parameters/0/style": "simple",
+      "/paths/~1pets/get/parameters/0/explode": false
+    }
+  },
+  {
+    "name": "multipart-binary-file",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "consumes": ["multipart/form-data"],
+      "paths": {
+        "/photos": {
+          "post": {
+            "parameters": [
+              {
+                "name": "photo",
+                "in": "formData",
+                "type": "file",
+                "required": true
+              }
+            ],
+            "responses": { "201": { "description": "Uploaded" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1photos/post/requestBody/required": true,
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/properties/photo/type": "string",
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/properties/photo/format": "binary",
+      "/paths/~1photos/post/requestBody/content/multipart~1form-data/schema/required": [
+        "photo"
+      ]
+    }
+  },
+  {
+    "name": "urlencoded-form-constraints",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "consumes": ["application/x-www-form-urlencoded"],
+      "paths": {
+        "/pets": {
+          "post": {
+            "parameters": [
+              {
+                "name": "age",
+                "in": "formData",
+                "type": "integer",
+                "minimum": 0,
+                "required": true
+              }
+            ],
+            "responses": { "201": { "description": "Created" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/age/type": "integer",
+      "/paths/~1pets/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/age/minimum": 0,
+      "/paths/~1pets/post/requestBody/content/application~1x-www-form-urlencoded/schema/required": [
+        "age"
+      ]
+    }
+  },
+  {
+    "name": "basic-authentication",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": { "basic": { "type": "basic" } },
+      "security": [{ "basic": [] }],
+      "paths": {
+        "/pets": {
+          "get": { "responses": { "204": { "description": "Empty" } } }
+        }
+      }
+    },
+    "expected": {
+      "/components/securitySchemes/basic": {
+        "type": "http",
+        "scheme": "basic"
+      },
+      "/security": [{ "basic": [] }]
+    }
+  },
+  {
+    "name": "header-api-key",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": {
+        "key": { "type": "apiKey", "name": "X-Key", "in": "header" }
+      },
+      "security": [{ "key": [] }],
+      "paths": {}
+    },
+    "expected": {
+      "/components/securitySchemes/key": {
+        "type": "apiKey",
+        "name": "X-Key",
+        "in": "header"
+      },
+      "/security": [{ "key": [] }]
+    }
+  },
+  {
+    "name": "query-api-key",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": {
+        "key": { "type": "apiKey", "name": "token", "in": "query" }
+      },
+      "security": [{ "key": [] }],
+      "paths": {}
+    },
+    "expected": {
+      "/components/securitySchemes/key/in": "query",
+      "/components/securitySchemes/key/name": "token"
+    }
+  },
+  {
+    "name": "oauth-authorization-code-scopes",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": {
+        "oauth": {
+          "type": "oauth2",
+          "flow": "accessCode",
+          "authorizationUrl": "https://auth.example.com/authorize",
+          "tokenUrl": "https://auth.example.com/token",
+          "scopes": { "pets:read": "Read pets" }
+        }
+      },
+      "security": [{ "oauth": ["pets:read"] }],
+      "paths": {}
+    },
+    "expected": {
+      "/components/securitySchemes/oauth/flows/authorizationCode/authorizationUrl": "https://auth.example.com/authorize",
+      "/components/securitySchemes/oauth/flows/authorizationCode/tokenUrl": "https://auth.example.com/token",
+      "/components/securitySchemes/oauth/flows/authorizationCode/scopes": {
+        "pets:read": "Read pets"
+      },
+      "/security": [{ "oauth": ["pets:read"] }]
+    }
+  },
+  {
+    "name": "security-and-or-and-anonymous-alternative",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": {
+        "key": { "type": "apiKey", "name": "X-Key", "in": "header" },
+        "basic": { "type": "basic" }
+      },
+      "security": [{ "key": [], "basic": [] }, {}],
+      "paths": {}
+    },
+    "expected": { "/security": [{ "key": [], "basic": [] }, {}] }
+  },
+  {
+    "name": "operation-removes-inherited-authentication",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "securityDefinitions": { "basic": { "type": "basic" } },
+      "security": [{ "basic": [] }],
+      "paths": {
+        "/health": {
+          "get": {
+            "security": [],
+            "responses": { "204": { "description": "Healthy" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/security": [{ "basic": [] }],
+      "/paths/~1health/get/security": []
+    }
+  },
+  {
+    "name": "reusable-response-and-schema-reference",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "produces": ["application/json"],
+      "definitions": {
+        "Pet": {
+          "type": "object",
+          "properties": { "id": { "type": "integer" } }
+        }
+      },
+      "responses": {
+        "Pet": {
+          "description": "Pet",
+          "schema": { "$ref": "#/definitions/Pet" }
+        }
+      },
+      "paths": {
+        "/pets": {
+          "get": { "responses": { "200": { "$ref": "#/responses/Pet" } } }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/responses/200/$ref": "#/components/responses/Pet",
+      "/components/responses/Pet/content/application~1json/schema/$ref": "#/components/schemas/Pet"
+    }
+  },
+  {
+    "name": "response-header-numeric-constraints",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "paths": {
+        "/pets": {
+          "get": {
+            "responses": {
+              "204": {
+                "description": "Empty",
+                "headers": {
+                  "X-Remaining": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Calls left"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/responses/204/headers/X-Remaining/schema/type": "integer",
+      "/paths/~1pets/get/responses/204/headers/X-Remaining/schema/minimum": 0,
+      "/paths/~1pets/get/responses/204/headers/X-Remaining/description": "Calls left"
+    }
+  },
+  {
+    "name": "literal-example-reference-is-inert",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "produces": ["application/json"],
+      "paths": {
+        "/pets": {
+          "get": {
+            "tags": ["Pets"],
+            "externalDocs": { "url": "https://docs.example.com/pets" },
+            "x-team": "pets",
+            "responses": {
+              "200": {
+                "description": "Pet",
+                "schema": { "type": "object" },
+                "examples": {
+                  "application/json": { "$ref": "literal-data", "name": "猫" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets/get/responses/200/content/application~1json/example": {
+        "$ref": "literal-data",
+        "name": "猫"
+      },
+      "/paths/~1pets/get/x-team": "pets",
+      "/paths/~1pets/get/tags": ["Pets"],
+      "/paths/~1pets/get/externalDocs/url": "https://docs.example.com/pets"
+    }
+  },
+  {
+    "name": "path-parameter-inheritance-and-operation-override",
+    "source": {
+      "swagger": "2.0",
+      "info": { "title": "Pets", "version": "1" },
+      "host": "api.example.com",
+      "schemes": ["https"],
+      "paths": {
+        "/pets/{id}": {
+          "parameters": [
+            { "name": "id", "in": "path", "type": "string", "required": true },
+            {
+              "name": "limit",
+              "in": "query",
+              "type": "integer",
+              "maximum": 100
+            }
+          ],
+          "get": {
+            "parameters": [
+              {
+                "name": "limit",
+                "in": "query",
+                "type": "integer",
+                "maximum": 10
+              }
+            ],
+            "responses": { "204": { "description": "Empty" } }
+          }
+        }
+      }
+    },
+    "expected": {
+      "/paths/~1pets~1{id}/get/parameters/0/name": "id",
+      "/paths/~1pets~1{id}/get/parameters/0/required": true,
+      "/paths/~1pets~1{id}/get/parameters/1/name": "limit",
+      "/paths/~1pets~1{id}/get/parameters/1/schema/maximum": 10
+    }
+  }
+]

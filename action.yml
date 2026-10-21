@@ -1,0 +1,34 @@
+name: Octri Spec Converter
+description: Convert and review API descriptions with the standalone offline Rust engine
+inputs:
+  input:
+    description: Source path relative to root
+    required: true
+  root:
+    description: Explicit source directory
+    default: .
+  files:
+    description: Additional files, directories or quoted glob patterns, one per line
+  target:
+    description: Published Swagger/OpenAPI target; empty preserves an OpenAPI source version
+  format:
+    description: json or yaml
+    default: json
+  config:
+    description: Reviewed converter configuration path relative to the workspace
+  binary:
+    description: Optional trusted prebuilt CLI path; otherwise build this action checkout with pinned Rust
+outputs:
+  document:
+    description: Converted document path in the runner temporary directory
+  report:
+    description: Reproducible private conversion report path
+  diagnostics:
+    description: Private CLI diagnostics path
+  status:
+    description: complete, needs-review, blocked or error
+  handoff-allowed:
+    description: Whether all mandatory checks and review decisions passed
+runs:
+  using: node24
+  main: scripts/github-action.mjs

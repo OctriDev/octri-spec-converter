@@ -1,0 +1,32 @@
+name: Build native npm packages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-14]
+    runs-on: ${{ matrix.runner }}
+    # Linux addons target Debian 12's glibc baseline, not the newer host runner.
+    container: ${{ startsWith(matrix.runner, 'ubuntu-') && 'rust:1.95.0-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - run: npm ci --ignore-scripts
+      - run: npm run build:node
+      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: npm run test:node
+      - run: node scripts/package-node-native.mjs
+      - run: node scripts/test-node-native-package.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-npm-${{ matrix.runner }}
+          path: artifacts/npm-native/
+          retention-days: 14

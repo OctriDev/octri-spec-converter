@@ -1,0 +1,31 @@
+{
+  "openapi": "3.1.2",
+  "info": { "title": "Pets", "version": "1.0.0" },
+  "servers": [{ "url": "https://api.example.com" }],
+  "security": [],
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List pets",
+        "tags": ["pets"],
+        "responses": {
+          "200": {
+            "description": "Pets",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "string" } },
+                "example": ["Ada"]
+              }
+            }
+          },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "securitySchemes": { "token": { "type": "http", "scheme": "bearer" } }
+  }
+}

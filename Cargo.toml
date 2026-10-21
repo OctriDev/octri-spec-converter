@@ -1,0 +1,37 @@
+[workspace]
+members = ["crates/*", "vendor/octri-parser", "vendor/octri-auditor"]
+default-members = ["crates/octri-converter", "crates/octri-converter-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.2"
+edition = "2024"
+rust-version = "1.95"
+authors = ["Octri contributors"]
+repository = "https://github.com/octridev/octri-spec-converter"
+publish = false
+license = "Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["unbounded_depth", "arbitrary_precision"] }
+url = { version = "2.5", features = ["serde"] }
+thiserror = "2.0"
+sha2 = "0.10"
+octri-parser = { path = "vendor/octri-parser" }
+octri-auditor = { path = "vendor/octri-auditor" }
+octri-converter = { path = "crates/octri-converter" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"
+

@@ -1,0 +1,4 @@
+<description xmlns="http://www.w3.org/ns/wsdl" xmlns:b="urn:base" xmlns:x="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:base">
+  <types><x:schema targetNamespace="urn:base"><x:element name="Text" type="x:string"/></x:schema></types>
+  <interface name="Base"><fault name="Missing" element="b:Text"/><operation name="Find" pattern="http://www.w3.org/ns/wsdl/in-out"><input element="#none"/><output element="b:Text"/><outfault ref="b:Missing"/></operation></interface>
+</description>

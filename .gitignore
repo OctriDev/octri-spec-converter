@@ -1,0 +1,26 @@
+/target/
+/node_modules/
+/artifacts/
+/web/dist/
+/packages/node/*.node
+/packages/browser/pkg/
+**/__pycache__/
+**/*.egg-info/
+bindings/python/build/
+**/*.gem
+**/.dart_tool/
+**/.build/
+**/target/
+*.dylib
+*.so
+*.dll
+.DS_Store
+.impeccable/review/
+
+# Local development and qualification evidence
+/.impeccable/
+/.ruff_cache/
+/.codex/
+
+# Internal design-session record
+/PRODUCT.md

@@ -1,0 +1,47 @@
+{
+  "name": "@octri/spec-converter-web",
+  "version": "0.1.4",
+  "description": "Complete offline browser UI for Octri Spec Converter, including WebAssembly and integrity manifests.",
+  "private": false,
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "web",
+    "packages",
+    "vendor",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "manifest.json",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/octridev/octri-spec-converter.git",
+    "directory": "packages/web"
+  },
+  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "bugs": {
+    "url": "https://github.com/octridev/octri-spec-converter/issues"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "rust",
+    "api",
+    "specification",
+    "spec-converter",
+    "converter",
+    "postman",
+    "raml",
+    "asyncapi",
+    "graphql",
+    "grpc",
+    "wsdl",
+    "static-site",
+    "browser",
+    "offline"
+  ]
+}

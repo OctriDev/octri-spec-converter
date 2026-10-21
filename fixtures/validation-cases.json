@@ -1,0 +1,221 @@
+[
+  {
+    "name": "missing-info-version",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets"
+      },
+      "paths": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "numeric-info-version",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": 42
+      },
+      "paths": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "object-info-version",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": {
+          "type": "string",
+          "$id": false,
+          "$ref": "missing.yaml"
+        }
+      },
+      "paths": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "undefined-security-scheme",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "security": [
+              {
+                "missing": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "non-oauth-security-scopes",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "security": [
+              {
+                "key": ["scope"]
+              }
+            ]
+          }
+        }
+      },
+      "components": {
+        "securitySchemes": {
+          "key": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "key"
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "duplicate-query-parameters",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "parameters": [
+              {
+                "name": "q",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              {
+                "name": "q",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "repeated-path-placeholder",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets/{id}/{id}": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "swagger-undeclared-required-property",
+    "input": {
+      "swagger": "2.0",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "definitions": {
+        "Pet": {
+          "type": "object",
+          "required": ["missing"],
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "property-named-ref",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Reference property",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Resource": {
+            "type": "object",
+            "properties": {
+              "$ref": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": true
+  }
+]

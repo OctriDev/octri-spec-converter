@@ -1,0 +1,7 @@
+# Keep authored code portable while preserving hash-pinned input/artifact bytes.
+* text=auto eol=lf
+vendor/** -text whitespace=cr-at-eol
+fixtures/** -text whitespace=cr-at-eol
+**/THIRD-PARTY-NOTICES.md -text whitespace=cr-at-eol
+*.wasm binary
+*.node binary

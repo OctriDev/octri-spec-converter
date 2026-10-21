@@ -1,0 +1,44 @@
+FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS node
+FROM rust:1.95.0-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1 AS rust
+FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS go
+FROM dart:3.11.6@sha256:2ed474dc085f267ca692261ce35b23a0ae039e317beebef854be886c8b57832d AS dart
+FROM swift:6.2.3-noble@sha256:6dd90eb2359663a2cde8f03e9951f488b23134b3b8fce20e9dcb6cada75dd803
+ARG TARGETARCH
+ARG OCTRI_TARGET_ARCH=${TARGETARCH}
+RUN test -n "$OCTRI_TARGET_ARCH" && test "$(dpkg --print-architecture)" = "$OCTRI_TARGET_ARCH"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv python3-build ruby ruby-fiddle php-cli php-common composer maven \
+    openjdk-21-jdk-headless clang git unzip curl ca-certificates pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture) /opt/jdk
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=rust /usr/local/cargo /usr/local/cargo
+COPY --from=rust /usr/local/rustup /usr/local/rustup
+COPY --from=go /usr/local/go /usr/local/go
+COPY --from=dart /usr/lib/dart /usr/lib/dart
+ENV JAVA_HOME=/opt/jdk CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
+ENV OCTRI_BUILD_PYTHON=/usr/bin/python3
+ENV CARGO_BUILD_JOBS=2
+ENV PATH="/opt/jdk/bin:/usr/local/cargo/bin:/usr/local/go/bin:/usr/lib/dart/bin:/opt/kotlinc/bin:${PATH}"
+RUN apt-get update && apt-get install -y --no-install-recommends libclang-rt-18-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && curl -fsSL https://github.com/JetBrains/kotlin/releases/download/v2.3.21/kotlin-compiler-2.3.21.zip -o /tmp/kotlin.zip \
+    && echo 'a8cfc1d62cd4d0de4d04f42575e40135bd620588c17d568a20eb9c7c259af14f  /tmp/kotlin.zip' | sha256sum -c - \
+    && unzip -q /tmp/kotlin.zip -d /opt && rm /tmp/kotlin.zip
+WORKDIR /convert
+COPY . .
+RUN npm ci --ignore-scripts \
+    && node scripts/notices.mjs \
+    && node scripts/build-bindings.mjs \
+    && node scripts/test-bindings.mjs \
+    && node scripts/pack-bindings.mjs \
+    && node scripts/test-binding-packages.mjs \
+    && node scripts/build-node.mjs \
+    && node scripts/test-node.mjs \
+    && node --test scripts/test-launch-corpus.mjs \
+    && node --test server/test.mjs \
+    && node scripts/cargo.mjs clippy --workspace --all-targets -- -D warnings \
+    && node scripts/cargo.mjs test --workspace
+CMD ["node", "scripts/test-bindings.mjs"]

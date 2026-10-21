@@ -1,0 +1,22 @@
+[package]
+name = "octri-auditor"
+description = "Source-aware OpenAPI readiness auditing without ambient I/O"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+octri-parser.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+url.workspace = true
+jsonschema = { version = "0.58.6", default-features = false, features = ["arbitrary-precision"] }
+semver = "1.0"
+percent-encoding = "2.3"
+
+[lints]
+workspace = true

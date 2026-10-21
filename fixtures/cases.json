@@ -1,0 +1,474 @@
+[
+  {
+    "name": "valid-3.0.4",
+    "input": {
+      "openapi": "3.0.4",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {}
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "valid-3.1.2",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {}
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "valid-3.2.0",
+    "input": {
+      "openapi": "3.2.0",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {}
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "valid-swagger-2",
+    "input": {
+      "swagger": "2.0",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "definitions": {
+        "Pet": {
+          "type": "string"
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "missing-info",
+    "input": {
+      "openapi": "3.1.2",
+      "paths": {}
+    },
+    "valid": false
+  },
+  {
+    "name": "boolean-31",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": false
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "boolean-30",
+    "input": {
+      "openapi": "3.0.4",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": false
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-schema-keyword",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": {
+            "type": "string",
+            "minLength": "no"
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "local-reference",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": {
+            "type": "string"
+          },
+          "A": {
+            "$ref": "#/components/schemas/Pet"
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "missing-pointer",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "A": {
+            "$ref": "#/components/schemas/Missing"
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "literal-reference",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": {
+            "type": "object",
+            "example": {
+              "$ref": "private.json"
+            },
+            "default": {
+              "$ref": "bad%"
+            },
+            "x-extra": {
+              "$ref": "nope"
+            }
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "external-schema",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": {
+            "$ref": "pet.yaml"
+          }
+        }
+      }
+    },
+    "valid": true,
+    "options": {
+      "files": {
+        "pet.yaml": "type: string\n"
+      }
+    }
+  },
+  {
+    "name": "external-invalid-response",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "responses": {
+              "200": {
+                "$ref": "response.yaml"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": false,
+    "options": {
+      "files": {
+        "response.yaml": "description: 42\n"
+      }
+    }
+  },
+  {
+    "name": "relative-schema-id",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "A": {
+            "$id": "https://example.test/a.json",
+            "properties": {
+              "b": {
+                "$ref": "b.json#B"
+              }
+            },
+            "$defs": {
+              "B": {
+                "$id": "b.json",
+                "$anchor": "B",
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "cross-resource-reference",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "A": {
+            "$id": "https://example.test/A",
+            "properties": {
+              "b": {
+                "$ref": "memory://octri/openapi.yaml#/components/schemas/B"
+              }
+            }
+          },
+          "B": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "schema-conjunction",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "A": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "B": {
+            "$ref": "#/components/schemas/A",
+            "maxLength": 2
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "recursive-schema",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Tree": {
+            "type": "object",
+            "properties": {
+              "child": {
+                "$ref": "#/components/schemas/Tree"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "dynamic-resource",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Tree": {
+            "$dynamicRef": "tree.json#node"
+          }
+        }
+      }
+    },
+    "valid": true,
+    "options": {
+      "files": {
+        "tree.json": "{\"$dynamicAnchor\": \"node\", \"type\": \"object\", \"properties\": {\"child\": {\"$dynamicRef\": \"#node\"}}}"
+      }
+    }
+  },
+  {
+    "name": "custom-dialect",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "Pet": {
+            "$schema": "https://example.test/custom",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "duplicate-operation-id",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "operationId": "same",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          },
+          "post": {
+            "operationId": "same",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-path-parameter",
+    "input": {
+      "openapi": "3.1.2",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {
+        "/pets/{id}": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "yaml-source",
+    "input": "openapi: 3.1.2\ninfo:\n  title: Pets\n  version: \"1\"\npaths: {}\n",
+    "valid": true
+  },
+  {
+    "name": "duplicate-yaml",
+    "input": "openapi: 3.1.2\nopenapi: 3.1.2\n",
+    "valid": false
+  },
+  {
+    "name": "invalid-version",
+    "input": {
+      "openapi": "4.0.0",
+      "info": {
+        "title": "Pets",
+        "version": "1"
+      },
+      "paths": {},
+      "components": {
+        "schemas": {}
+      }
+    },
+    "valid": false
+  }
+]

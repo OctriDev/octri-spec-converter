@@ -1,0 +1,30 @@
+{
+  "publisher": "OpenAPI Initiative",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "file": "openapi-2.0.json",
+      "url": "https://spec.openapis.org/oas/2.0/schema/2017-08-27",
+      "id": "http://swagger.io/v2/schema.json#",
+      "sha256": "ab885e0fbf177400b25a7fbc58cd0c2573d5291c7ad0ce79d489312790f2ffe6"
+    },
+    {
+      "file": "openapi-3.0.json",
+      "url": "https://spec.openapis.org/oas/3.0/schema/2024-10-18",
+      "id": "https://spec.openapis.org/oas/3.0/schema/2024-10-18",
+      "sha256": "e11d04e40c062b06895d663cb2785f671e345c3fb4bb6c96a331d2e809b5819f"
+    },
+    {
+      "file": "openapi-3.1.json",
+      "url": "https://spec.openapis.org/oas/3.1/schema/2026-08-03",
+      "id": "https://spec.openapis.org/oas/3.1/schema/2026-08-03",
+      "sha256": "59f106413cb48c31299f96f024c938d3628aed6cd02cd14bcfb2fcaae7a130b6"
+    },
+    {
+      "file": "openapi-3.2.json",
+      "url": "https://spec.openapis.org/oas/3.2/schema/2026-08-30",
+      "id": "https://spec.openapis.org/oas/3.2/schema/2026-08-30",
+      "sha256": "ec53db6e114b768ff2d273b232bda210f51b70c5e57d57ac8daf7e8496a6e073"
+    }
+  ]
+}

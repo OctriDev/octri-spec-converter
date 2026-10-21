@@ -1,0 +1,62 @@
+{
+  "name": "@octri/spec-converter-wasm",
+  "version": "0.1.4",
+  "license": "Apache-2.0",
+  "files": [
+    "index.mjs",
+    "index.d.ts",
+    "client.mjs",
+    "json.mjs",
+    "numbers.mjs",
+    "worker.mjs",
+    "worker-client.mjs",
+    "worker-client.d.ts",
+    "pkg",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "OAI-LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    "./worker": {
+      "types": "./worker-client.d.ts",
+      "import": "./worker-client.mjs"
+    },
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/octridev/octri-spec-converter.git",
+    "directory": "packages/browser"
+  },
+  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "bugs": {
+    "url": "https://github.com/octridev/octri-spec-converter/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "rust",
+    "api",
+    "specification",
+    "spec-converter",
+    "converter",
+    "postman",
+    "raml",
+    "asyncapi",
+    "graphql",
+    "grpc",
+    "wsdl",
+    "webassembly",
+    "wasm",
+    "browser"
+  ],
+  "description": "Browser WebAssembly bindings for Octri Spec Converter, powered by Rust."
+}

@@ -1,0 +1,71 @@
+{
+  "name": "@octri/spec-converter-native",
+  "version": "0.1.4",
+  "license": "Apache-2.0",
+  "files": [
+    "index.mjs",
+    "index.cjs",
+    "index.d.ts",
+    "index.d.cts",
+    "client.mjs",
+    "json.mjs",
+    "numbers.mjs",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "OAI-LICENSE",
+    "README.md",
+    "load-native.cjs"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.d.ts",
+        "default": "./index.mjs"
+      },
+      "require": {
+        "types": "./index.d.cts",
+        "default": "./index.cjs"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/octridev/octri-spec-converter.git",
+    "directory": "packages/node"
+  },
+  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "bugs": {
+    "url": "https://github.com/octridev/octri-spec-converter/issues"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "rust",
+    "api",
+    "specification",
+    "spec-converter",
+    "converter",
+    "postman",
+    "raml",
+    "asyncapi",
+    "graphql",
+    "grpc",
+    "wsdl",
+    "node-api",
+    "native",
+    "nodejs"
+  ],
+  "description": "Node.js native bindings for Octri Spec Converter, powered by Rust.",
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "@octri/spec-converter-native-darwin-arm64": "0.1.4",
+    "@octri/spec-converter-native-linux-x64": "0.1.4",
+    "@octri/spec-converter-native-linux-arm64": "0.1.4"
+  }
+}

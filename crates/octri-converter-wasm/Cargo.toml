@@ -1,0 +1,15 @@
+[package]
+name = "octri-converter-wasm"
+description = "Offline browser transport for Octri Spec Converter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+octri-converter.workspace = true
+wasm-bindgen = "=0.2.129"

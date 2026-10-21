@@ -1,0 +1,9 @@
+<description xmlns="http://www.w3.org/ns/wsdl" xmlns:t="urn:derived" xmlns:b="urn:base" xmlns:x="http://www.w3.org/2001/XMLSchema" xmlns:h="http://www.w3.org/ns/wsdl/http" targetNamespace="urn:derived">
+  <import namespace="urn:base" location="base.wsdl"/>
+  <types><x:schema targetNamespace="urn:derived"><x:element name="Count" type="x:int"/></x:schema></types>
+  <interface name="Left" extends="b:Base"/>
+  <interface name="Right" extends="b:Base"/>
+  <interface name="Service" extends="t:Left t:Right"><fault name="Missing" element="t:Count"/><operation name="Count" pattern="http://www.w3.org/ns/wsdl/in-out"><input element="#none"/><output element="t:Count"/><outfault ref="b:Missing"/></operation></interface>
+  <binding name="Binding" interface="t:Service" type="http://www.w3.org/ns/wsdl/http" h:methodDefault="GET"><fault ref="b:Missing" h:code="404"/><operation ref="b:Find" h:location="find"/><operation ref="t:Count" h:location="count"/></binding>
+  <service name="Service" interface="t:Service"><endpoint name="Main" binding="t:Binding" address="https://api.example.com/v2/" h:authenticationScheme="basic"/></service>
+</description>

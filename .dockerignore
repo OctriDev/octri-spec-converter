@@ -1,0 +1,15 @@
+target
+node_modules
+artifacts
+.git
+.impeccable
+.env
+**/.env*
+**/target
+**/.build
+**/.dart_tool
+**/__pycache__
+**/*.node
+**/*.dylib
+**/*.so
+**/*.dll

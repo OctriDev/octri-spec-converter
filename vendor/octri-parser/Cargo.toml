@@ -1,0 +1,20 @@
+[package]
+name = "octri-parser"
+description = "Source-aware OpenAPI parser and reference graph, with no ambient I/O"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+thiserror.workspace = true
+yaml-rust2 = { version = "0.13", default-features = false }
+percent-encoding = "2.3"
+jsonschema = { version = "0.58.6", default-features = false, features = ["arbitrary-precision"] }
+
+[lints]
+workspace = true
