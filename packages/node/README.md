@@ -1,5 +1,7 @@
 # Octri Spec Converter — Node.js
 
+[Live demo](https://octri.dev/spec-converter) · Free to try in your browser, no account required.
+
 Convert supported Swagger/OpenAPI, Postman, RAML, Insomnia, HAR, cURL and mapped protocol specifications to OpenAPI, with explicit review of incompatible or lossy changes.
 
 Part of [octri-spec-converter](https://github.com/octridev/octri-spec-converter), maintained by [OctriDev](https://github.com/octridev). Licensed under Apache-2.0. Bundled dependencies retain their own licenses and notices.

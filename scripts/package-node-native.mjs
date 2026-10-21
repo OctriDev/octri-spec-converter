@@ -49,7 +49,7 @@ writeFileSync(
 );
 writeFileSync(
   join(staging, "README.md"),
-  `# ${name}\n\nPlatform-specific Rust Node-API binary for [${metadata.name}](${metadata.homepage}). Install the parent package with optional dependencies enabled:\n\n\`\`\`sh\nnpm install ${metadata.name}\n\`\`\`\n\nRequires Node.js 22.19 or later, ${process.platform} ${process.arch}${process.platform === "linux" ? " with glibc 2.36 or later" : ""}. No install-time scripts or binary downloads. Apache-2.0; retain bundled third-party notices.\n`,
+  `# ${name}\n\n[Live demo](${metadata.homepage}) · Free to try in your browser, no account required.\n\nPlatform-specific Rust Node-API binary for [${metadata.name}](https://www.npmjs.com/package/${metadata.name}). Install the parent package with optional dependencies enabled:\n\n\`\`\`sh\nnpm install ${metadata.name}\n\`\`\`\n\nRequires Node.js 22.19 or later, ${process.platform} ${process.arch}${process.platform === "linux" ? " with glibc 2.36 or later" : ""}. No install-time scripts or binary downloads. Apache-2.0; retain bundled third-party notices.\n`,
 );
 const pack = (directory) =>
   JSON.parse(

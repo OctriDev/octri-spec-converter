@@ -43,7 +43,7 @@
     "type": "git",
     "url": "https://github.com/octridev/octri-spec-converter.git"
   },
-  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "homepage": "https://octri.dev/spec-converter",
   "bugs": {
     "url": "https://github.com/octridev/octri-spec-converter/issues"
   }

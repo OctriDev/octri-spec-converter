@@ -1,6 +1,6 @@
 {
   "name": "@octri/spec-converter-web",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Complete offline browser UI for Octri Spec Converter, including WebAssembly and integrity manifests.",
   "private": false,
   "license": "Apache-2.0",
@@ -22,7 +22,7 @@
     "url": "git+https://github.com/octridev/octri-spec-converter.git",
     "directory": "packages/web"
   },
-  "homepage": "https://github.com/octridev/octri-spec-converter#readme",
+  "homepage": "https://octri.dev/spec-converter",
   "bugs": {
     "url": "https://github.com/octridev/octri-spec-converter/issues"
   },

@@ -1,5 +1,7 @@
 # Octri Spec Converter
 
+[Live demo](https://octri.dev/spec-converter) · Free to try in your browser, no account required.
+
 An offline Rust engine for converting API descriptions and request collections into Swagger/OpenAPI, with source provenance, strict validation, readiness auditing and explicit review decisions.
 
 Maintained by [OctriDev](https://github.com/octridev). Build from source or use platform-matched release artifacts. Licensed under [Apache-2.0](LICENSE); third-party components retain their own licenses.

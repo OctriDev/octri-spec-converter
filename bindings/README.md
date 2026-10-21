@@ -1,5 +1,7 @@
 # Language bindings
 
+[Live demo](https://octri.dev/spec-converter) · Free to try in your browser, no account required.
+
 Every binding calls the same Rust conversion engine. Bindings add host memory
 ownership, asynchronous execution where appropriate, and JSON transport. They do
 not implement independent conversion rules. Build instructions and runtime requirements apply to source builds and
