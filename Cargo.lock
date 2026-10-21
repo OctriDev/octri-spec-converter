@@ -1019,7 +1019,7 @@ dependencies = [
 
 [[package]]
 name = "octri-auditor"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "jsonschema",
  "octri-parser",
@@ -1034,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "octri-converter"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "Inflector",
  "base64",
@@ -1056,7 +1056,7 @@ dependencies = [
 
 [[package]]
 name = "octri-converter-cli"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "glob",
@@ -1072,7 +1072,7 @@ dependencies = [
 
 [[package]]
 name = "octri-converter-ffi"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "octri-converter",
  "serde_json",
@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "octri-converter-node"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "napi",
  "napi-build",
@@ -1090,7 +1090,7 @@ dependencies = [
 
 [[package]]
 name = "octri-converter-wasm"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "octri-converter",
  "wasm-bindgen",
@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "octri-parser"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "jsonschema",
  "percent-encoding",

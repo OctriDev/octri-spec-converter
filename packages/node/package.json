@@ -1,6 +1,6 @@
 {
   "name": "@octri/spec-converter-native",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "license": "Apache-2.0",
   "files": [
     "index.mjs",
@@ -64,8 +64,8 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "@octri/spec-converter-native-darwin-arm64": "0.1.5",
-    "@octri/spec-converter-native-linux-x64": "0.1.5",
-    "@octri/spec-converter-native-linux-arm64": "0.1.5"
+    "@octri/spec-converter-native-darwin-arm64": "0.1.6",
+    "@octri/spec-converter-native-linux-x64": "0.1.6",
+    "@octri/spec-converter-native-linux-arm64": "0.1.6"
   }
 }

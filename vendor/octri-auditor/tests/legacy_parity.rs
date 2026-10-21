@@ -58,10 +58,75 @@ fn semantic_verbs_and_noun_boundaries_are_preserved() {
 }
 
 #[test]
-fn verbs_move_instead_of_gaining_another_http_prefix() {
+fn unfamiliar_actions_never_gain_an_http_verb() {
+    for id in [
+        "loginUser",
+        "logoutUser",
+        "placeOrder",
+        "onboardEmployee",
+        "provisionCluster",
+        "reconcileInvoice",
+        "frobnicateResource",
+        "provisionGetToken",
+        "reconcileReadReceipt",
+        "onboardUserGet",
+        "LoginUser",
+        "LogoutUser",
+        "PlaceOrder",
+        "ProvisionGetToken",
+        "login_user",
+        "LOGOUT_USER",
+        "place-order",
+        "users.loginUser",
+        "root",
+        "petsByStatus",
+    ] {
+        for method in [
+            "get", "post", "put", "patch", "delete", "head", "options", "trace",
+        ] {
+            let mut value = document(id);
+            let operation = value["paths"]["/pets"]["get"].take();
+            value["paths"]["/pets"]
+                .as_object_mut()
+                .unwrap()
+                .remove("get");
+            value["paths"]["/pets"][method] = operation;
+            assert!(
+                findings(value, "operation-id-naming").is_empty(),
+                "{method} {id}: an unfamiliar word is not evidence of a missing action"
+            );
+        }
+    }
+}
+
+#[test]
+fn authored_actions_are_not_mistaken_for_namespace_prefixes() {
+    for (id, tag) in [
+        ("provisionGetToken", "provision"),
+        ("reconcileReadReceipt", "Reconcile"),
+        ("onboardUserGet", "Onboard"),
+        ("ProvisionGetToken", "Provision"),
+        ("ReconcileReadReceipt", "Reconcile"),
+        ("OnboardUserGet", "Onboard"),
+        ("PROVISION_GET_TOKEN", "PROVISION"),
+        ("provision-get-token", "provision"),
+    ] {
+        let mut value = document(id);
+        value["paths"]["/pets"]["get"]["tags"] = json!([tag]);
+        assert!(findings(value, "operation-id-naming").is_empty(), "{id}");
+    }
+}
+
+#[test]
+fn namespace_cleanup_preserves_the_authored_leading_action() {
+    let mut value = document("cancelOrderOrderRead");
+    value["paths"]["/pets"]["get"]["tags"] = json!(["Order"]);
+    assert_eq!(rename(value).as_deref(), Some("cancelOrderRead"));
+}
+
+#[test]
+fn redundant_leading_actions_are_repaired_without_an_http_prefix() {
     for (before, after) in [
-        ("PetsFindByTags", "findPetsByTags"),
-        ("PetsByTagsFind", "findPetsByTags"),
         ("getFindPetsByTags", "findPetsByTags"),
         ("findFindPets", "findPets"),
         ("getGetPets", "getPets"),
@@ -87,22 +152,25 @@ fn existing_schema_conventions_guide_repairs_but_do_not_rename_valid_ids() {
 }
 
 #[test]
-fn legacy_namespace_and_acronym_repairs_stay_stable() {
-    for (before, after) in [
-        ("ActionsActionsGet", "getActions"),
-        ("ActionsGet", "getActions"),
-        ("root", "getRoot"),
-        ("PetsUsersDelete", "deletePetsUsers"),
-        ("UsersUserDelete", "deleteUsers"),
-        ("HTMLCheckGet", "getHtmlCheck"),
+fn ambiguous_namespace_and_acronym_prefixes_are_preserved() {
+    for (id, namespace) in [
+        ("ActionsActionsGet", "Actions"),
+        ("ActionsGet", "Actions"),
+        ("PetsUsersDelete", "Pets"),
+        ("UsersUserDelete", "Users"),
+        ("HTMLCheckGet", "HTML"),
+        ("PetsFindByTags", "Pets"),
+        ("PetsByTagsFind", "Pets"),
     ] {
-        assert_eq!(rename(document(before)).as_deref(), Some(after), "{before}");
+        let mut value = document(id);
+        value["paths"]["/pets"]["get"]["tags"] = json!([namespace]);
+        assert!(findings(value, "operation-id-naming").is_empty(), "{id}");
     }
 }
 
 #[test]
 fn repairs_never_suggest_an_identifier_already_in_the_document() {
-    let mut value = document("PetsFindByTags");
+    let mut value = document("getFindPetsByTags");
     value["paths"]["/other"]["get"] = value["paths"]["/pets"]["get"].clone();
     value["paths"]["/other"]["get"]["operationId"] = json!("findPetsByTags");
     assert!(findings(value, "operation-id-naming").is_empty());
@@ -110,7 +178,7 @@ fn repairs_never_suggest_an_identifier_already_in_the_document() {
 
 #[test]
 fn one_operation_cannot_establish_a_schema_convention() {
-    let mut value = document("PetsFindByTags");
+    let mut value = document("getFindPetsByTags");
     value["paths"]["/other"]["get"] = value["paths"]["/pets"]["get"].clone();
     value["paths"]["/other"]["get"]["operationId"] = json!("getOtherPets");
     assert_eq!(rename(value).as_deref(), Some("findPetsByTags"));
@@ -118,9 +186,9 @@ fn one_operation_cannot_establish_a_schema_convention() {
 
 #[test]
 fn selecting_multiple_repairs_does_not_create_duplicate_identifiers() {
-    let mut value = document("PetsFindByTags");
+    let mut value = document("getFindPetsByTags");
     value["paths"]["/other"]["get"] = value["paths"]["/pets"]["get"].clone();
-    value["paths"]["/other"]["get"]["operationId"] = json!("PetsByTagsFind");
+    value["paths"]["/other"]["get"]["operationId"] = json!("findFindPetsByTags");
     let request: AuditRequest = serde_json::from_value(json!({
         "input": {"uri": "memory://audit/repairs.json", "content": value.to_string()}
     }))

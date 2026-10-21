@@ -435,7 +435,7 @@ fn audit_operation(
         );
         findings.operation("mcp-tool-name",operation,"No explicit stable tool identifier is available. The MCP generator must synthesize one from the operation path; verify the generated name before publishing.");
     } else if let Some(proposed) = naming::suggested_rename(operation, naming_conventions) {
-        findings.operation("operation-id-naming", operation, format!("`{id}` repeats its namespace, misplaces an action verb or lacks a recognized leading action. Review `{proposed}`; renaming changes generated public APIs."));
+        findings.operation("operation-id-naming", operation, format!("`{id}` repeats a namespace or action. Review `{proposed}`; renaming changes generated public APIs."));
         let at = findings
             .sources
             .field(&operation.location.address, "operationId");

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Update embedded readiness auditing to ruleset `1.0.3`, preserving authored operation IDs with unfamiliar action verbs and retaining collision-safe duplicate-action repairs.
+- Rebuild native bindings and browser assets; npm packages ship as `0.1.6`.
+
 ## 0.1.0
 
 - Rust conversion engine for Swagger/OpenAPI, request collections and explicitly

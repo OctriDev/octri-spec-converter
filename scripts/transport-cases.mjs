@@ -658,6 +658,14 @@ export function transportCases() {
     "3.2.1",
   ];
   return [
+    ...["loginUser", "logoutUser", "placeOrder", "ProvisionGetToken"].map(
+      (operationId) => {
+        const document = structuredClone(modern);
+        document.paths["/pets"].get.operationId = operationId;
+        document.paths["/pets"].get.tags = ["Provision"];
+        return { abiVersion: 1, action: "convert", request: make(document) };
+      },
+    ),
     ...draft7Requests().map((request) => ({
       abiVersion: 1,
       action: "convert",

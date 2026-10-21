@@ -67,7 +67,7 @@ fn scored_rules_have_positive_and_negative_fixtures() {
         ),
         (
             "operation-id-naming",
-            Box::new(|v| v["paths"]["/pets"]["get"]["operationId"] = json!("PetsPetsGet")),
+            Box::new(|v| v["paths"]["/pets"]["get"]["operationId"] = json!("getGetPets")),
         ),
         (
             "operation-documented",

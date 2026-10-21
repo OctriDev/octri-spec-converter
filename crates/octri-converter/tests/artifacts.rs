@@ -26,7 +26,22 @@ fn embedded_readiness_preserves_semantic_operation_verbs() -> Result<(), Box<dyn
 {
     let mut document: serde_json::Value =
         serde_json::from_str(include_str!("../../../fixtures/clean.json"))?;
-    document["paths"]["/pets"]["get"]["operationId"] = json!("findPetsByStatus");
+    for (index, id) in [
+        "findPetsByStatus",
+        "loginUser",
+        "logoutUser",
+        "placeOrder",
+        "ProvisionGetToken",
+        "ReconcileReadReceipt",
+        "OnboardUserGet",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut operation = document["paths"]["/pets"]["get"].clone();
+        operation["operationId"] = json!(id);
+        document["paths"][format!("/naming/{index}")]["get"] = operation;
+    }
     let request: ConversionRequest = serde_json::from_value(json!({
         "input": {"uri": "memory://project/naming.json", "content": document.to_string()},
         "config": {"targetVersion": "3.2.1"}
@@ -34,7 +49,7 @@ fn embedded_readiness_preserves_semantic_operation_verbs() -> Result<(), Box<dyn
     let report = convert(&request)?;
     assert!(report.valid);
     let audit = report.audit.ok_or("missing readiness audit")?;
-    assert_eq!(audit.manifest.ruleset_version, "1.0.2");
+    assert_eq!(audit.manifest.ruleset_version, "1.0.3");
     assert!(
         !audit
             .findings

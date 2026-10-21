@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const RULESET_VERSION: &str = "1.0.2";
+pub const RULESET_VERSION: &str = "1.0.3";
 pub const REPORT_VERSION: &str = "1.0.0";
 pub const MAX_ENVELOPE_BYTES: usize = 128 * 1024 * 1024;
 

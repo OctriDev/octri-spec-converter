@@ -207,6 +207,13 @@ pub fn suggested_rename(
     }
     let lower = &words;
     let leads = verbs::family(&lower[0]).is_some();
+    // The action vocabulary is not an exhaustive English dictionary. An
+    // unfamiliar first word may be an authored action, including domain verbs.
+    // Casing, tags and HTTP methods cannot prove that it is a resource noun.
+    // Preserve uncertain authored names rather than inventing a second action.
+    if !leads {
+        return None;
+    }
     let trailing = lower
         .last()
         .filter(|word| verbs::family(word).is_some())
@@ -241,14 +248,10 @@ pub fn suggested_rename(
     if leads && !stacked && (!repeated && !repeated_namespace || trailing.is_none()) {
         return None;
     }
-    let action_index = if stacked {
-        Some(1)
-    } else {
-        trailing.or_else(|| words.iter().position(|word| verbs::family(word).is_some()))
-    };
+    let action_index = if stacked { 1 } else { 0 };
     let mut subject: Vec<&str> = Vec::new();
     for (index, word) in words.iter().enumerate() {
-        if Some(index) == action_index
+        if index == action_index
             || leads && index == 0
             || index > 0 && stem(&lower[index]) == stem(&lower[index - 1])
         {
@@ -267,9 +270,7 @@ pub fn suggested_rename(
     if subject.is_empty() {
         return None;
     }
-    let verb = action_index
-        .map(|index| lower[index].as_str())
-        .unwrap_or_else(|| method_verb(&operation.method));
+    let verb = lower[action_index].as_str();
     let verb = conventions.preferred(operation, verb).unwrap_or(verb);
     let proposal = camel(&format!("{verb} {}", subject.join(" ")));
     // A stylistic repair must never introduce a duplicate authored identifier.
