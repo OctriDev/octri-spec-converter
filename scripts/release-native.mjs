@@ -35,27 +35,28 @@ if (process.platform === "darwin")
   ]);
 // Go links the archive. Drop std's debug info and the LLVM bitcode that LTO
 // leaves in each object: two thirds of its size, unused by a normal link.
-// Apple's strip corrupts the archive's assembly objects; LLVM objcopy does not.
+// Apple's strip corrupts the archive's assembly objects, so macOS uses the
+// toolchain's LLVM objcopy. Linux uses binutils objcopy: the toolchain's copy
+// needs a libLLVM that minimal Rust installs leave out.
 const rustc = (args) =>
   execFileSync("rustc", args, { encoding: "utf8", env: rustEnvironment() });
-const host = rustc(["-vV"]).match(/^host: (.+)$/m)[1];
-const bitcode =
-  process.platform === "darwin"
-    ? ["__LLVM,__bitcode", "__LLVM,__cmdline"]
-    : [".llvmbc", ".llvmcmd"];
-run(
-  join(
-    rustc(["--print", "sysroot"]).trim(),
-    "lib/rustlib",
-    host,
-    "bin/rust-objcopy",
-  ),
-  [
-    "--strip-debug",
-    ...bitcode.map((section) => `--remove-section=${section}`),
-    archive,
-  ],
-);
+const darwin = process.platform === "darwin";
+const objcopy = darwin
+  ? join(
+      rustc(["--print", "sysroot"]).trim(),
+      "lib/rustlib",
+      rustc(["-vV"]).match(/^host: (.+)$/m)[1],
+      "bin/rust-objcopy",
+    )
+  : "objcopy";
+const bitcode = darwin
+  ? ["__LLVM,__bitcode", "__LLVM,__cmdline"]
+  : [".llvmbc", ".llvmcmd"];
+run(objcopy, [
+  "--strip-debug",
+  ...bitcode.map((section) => `--remove-section=${section}`),
+  archive,
+]);
 
 const jni = join(output, libraryFile("octri_converter_jni"));
 buildJniBridge(findJavaHome(), output, jni);
