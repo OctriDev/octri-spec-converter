@@ -18,7 +18,8 @@ The package bundles the native library as a resource.
 Supported platforms: Linux x64 and arm64 (glibc 2.36 or later) and macOS arm64. On other platforms, build
 `liboctri_converter_ffi` from [the repository](https://github.com/octridev/octri-spec-converter) and pass its path to `Converter(library:)`.
 
-macOS consumers declare macOS 13 or later. Linux executables should link with `-Xlinker -z -Xlinker separate-code`.
+macOS consumers declare macOS 13 or later. Linux executables should link with lld and separate code segments:
+`-Xswiftc -use-ld=lld -Xlinker -z -Xlinker separate-code`.
 
 Requests, reports and the runtime contract are documented in the
 [bindings guide](https://github.com/octridev/octri-spec-converter/blob/main/bindings/README.md). Licensed under Apache-2.0; the bundled library's

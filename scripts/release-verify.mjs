@@ -188,8 +188,16 @@ const consumers = {
         "run",
         "-c",
         "release",
+        // The Swift image's default gold linker rejects separate-code; lld takes it.
         ...(process.platform === "linux"
-          ? ["-Xlinker", "-z", "-Xlinker", "separate-code"]
+          ? [
+              "-Xswiftc",
+              "-use-ld=lld",
+              "-Xlinker",
+              "-z",
+              "-Xlinker",
+              "separate-code",
+            ]
           : []),
         "Consumer",
       ],
