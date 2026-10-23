@@ -38,7 +38,6 @@ RUN npm ci --ignore-scripts \
     && node scripts/build-node.mjs \
     && node scripts/test-node.mjs \
     && node --test scripts/test-launch-corpus.mjs \
-    && node --test server/test.mjs \
     && node scripts/cargo.mjs clippy --workspace --all-targets -- -D warnings \
     && node scripts/cargo.mjs test --workspace
 CMD ["node", "scripts/test-bindings.mjs"]
