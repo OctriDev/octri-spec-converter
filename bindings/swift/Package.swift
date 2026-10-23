@@ -6,8 +6,8 @@ let package = Package(
   platforms: [.macOS(.v13)],
   products: [.library(name: "OctriSpecConverter", targets: ["OctriSpecConverter"])],
   targets: [
-    .systemLibrary(name: "COctriConverter"),
-    .target(name: "OctriSpecConverter", dependencies: ["COctriConverter"]),
+    // Release builds place each platform's native library under native/.
+    .target(name: "OctriSpecConverter", resources: [.copy("native")]),
     .executableTarget(
       name: "BindingCheck", dependencies: ["OctriSpecConverter"], path: "Tests/BindingCheck"),
   ]

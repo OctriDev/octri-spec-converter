@@ -15,7 +15,11 @@ module OctriConverter
   end
 
   class Converter
-    def initialize(library)
+    # Platform gems carry the native library under lib/octri_converter/native.
+    BUNDLED_LIBRARY = File.join(__dir__, 'octri_converter', 'native',
+                                RUBY_PLATFORM.include?('darwin') ? 'liboctri_converter_ffi.dylib' : 'liboctri_converter_ffi.so')
+
+    def initialize(library = BUNDLED_LIBRARY)
       @library = Fiddle.dlopen(File.realpath(library))
       @version = function('abi_version', [], Fiddle::TYPE_INT)
       raise 'Expected converter ABI version 1' unless @version.call == 1

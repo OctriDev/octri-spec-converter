@@ -1,6 +1,10 @@
 package dev.octri.converter;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 final class NativeBridge {
   private static String loaded;
@@ -21,6 +25,38 @@ final class NativeBridge {
         throw new IllegalStateException("Expected converter ABI version 1");
       }
       loaded = paths;
+    }
+  }
+
+  /** Extracts the library pair packaged for this platform and loads it once per class loader. */
+  static synchronized void loadBundled() throws IOException {
+    if (loaded != null) return;
+    String os = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+    String arch = System.getProperty("os.arch");
+    String platform =
+        (os.contains("mac") ? "darwin" : os.contains("linux") ? "linux" : os)
+            + "-"
+            + (arch.equals("amd64") || arch.equals("x86_64")
+                ? "x64"
+                : arch.equals("aarch64") ? "arm64" : arch);
+    String suffix = os.contains("mac") ? ".dylib" : ".so";
+    Path directory = Files.createTempDirectory("octri-converter-");
+    directory.toFile().deleteOnExit();
+    Path library = extract(platform, "liboctri_converter_ffi" + suffix, directory);
+    Path bridge = extract(platform, "liboctri_converter_jni" + suffix, directory);
+    load(library.toString(), bridge.toString());
+  }
+
+  private static Path extract(String platform, String name, Path directory) throws IOException {
+    try (InputStream input =
+        NativeBridge.class.getResourceAsStream("native/" + platform + "/" + name)) {
+      if (input == null) {
+        throw new UnsatisfiedLinkError("No bundled converter native library for " + platform);
+      }
+      Path target = directory.resolve(name);
+      Files.copy(input, target);
+      target.toFile().deleteOnExit();
+      return target;
     }
   }
 

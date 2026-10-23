@@ -49,7 +49,7 @@ const targets = [
     ["-d", "ffi.enable=true", "bindings/php/check.php", build.library, "--raw"],
   ],
   ["ruby", "ruby", ["bindings/ruby/check.rb", build.library]],
-  ["swift", build.swiftCheck, []],
+  ["swift", build.swiftCheck, [build.library]],
   ["dart", build.dartCheck, [build.library, "--raw"]],
 ];
 const rust = (envelope) => {

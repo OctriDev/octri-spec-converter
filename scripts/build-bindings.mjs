@@ -1,12 +1,12 @@
 import { execFileSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
+import {
+  buildJniBridge,
+  findJavaHome,
+  libraryFile,
+  version,
+} from "./native-build.mjs";
 import { rustEnvironment } from "./toolchain.mjs";
 
 if (!["darwin", "linux"].includes(process.platform))
@@ -29,57 +29,25 @@ run(
   ],
   { env: rustEnvironment() },
 );
-for (const target of [
+copyFileSync(
+  "bindings/c/include/octri_converter.h",
   "bindings/go/octri_converter.h",
-  "bindings/swift/Sources/COctriConverter/include/octri_converter.h",
-]) {
-  mkdirSync(resolve(target, ".."), { recursive: true });
-  copyFileSync("bindings/c/include/octri_converter.h", target);
-}
-const suffix = process.platform === "darwin" ? "dylib" : "so";
-const library = join(nativeDir, `liboctri_converter_ffi.${suffix}`);
+);
+const library = join(nativeDir, libraryFile("octri_converter_ffi"));
 if (process.platform === "darwin")
   run("install_name_tool", [
     "-id",
-    `@rpath/liboctri_converter_ffi.${suffix}`,
+    `@rpath/${libraryFile("octri_converter_ffi")}`,
     library,
   ]);
-const homebrewJdk =
-  "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home";
-const javaHome =
-  process.env.JAVA_HOME ??
-  (existsSync(homebrewJdk)
-    ? homebrewJdk
-    : process.platform === "darwin"
-      ? execFileSync("/usr/libexec/java_home", ["-v", "11+"], {
-          encoding: "utf8",
-        }).trim()
-      : "/usr/lib/jvm/default-java");
+const javaHome = findJavaHome();
 const javaEnv = {
   ...process.env,
   JAVA_HOME: javaHome,
   PATH: `${join(javaHome, "bin")}${delimiter}${process.env.PATH}`,
 };
-const jni = join(nativeDir, `liboctri_converter_jni.${suffix}`);
-run("clang", [
-  "-std=c11",
-  "-Wall",
-  "-Wextra",
-  "-Werror",
-  "-fPIC",
-  "-shared",
-  "-Ibindings/c/include",
-  `-I${join(javaHome, "include")}`,
-  `-I${join(javaHome, "include", process.platform === "darwin" ? "darwin" : "linux")}`,
-  "bindings/java/native/bridge.c",
-  `-L${nativeDir}`,
-  "-loctri_converter_ffi",
-  process.platform === "darwin"
-    ? "-Wl,-rpath,@loader_path"
-    : "-Wl,-rpath,$ORIGIN",
-  "-o",
-  jni,
-]);
+const jni = join(nativeDir, libraryFile("octri_converter_jni"));
+buildJniBridge(javaHome, nativeDir, jni);
 run(
   "mvn",
   ["-q", "-f", "bindings/java/pom.xml", "clean", "install", "-DskipTests"],
@@ -100,14 +68,14 @@ const javaDependencies = readFileSync(
   join(output, "java-dependencies.txt"),
   "utf8",
 ).trim();
-const javaJar = resolve("bindings/java/target/spec-converter-0.1.0.jar");
+const javaJar = resolve(`bindings/java/target/spec-converter-${version}.jar`);
 run(
   "mvn",
   ["-q", "-f", "bindings/kotlin/pom.xml", "clean", "package", "-DskipTests"],
   { env: javaEnv },
 );
 const kotlinJar = resolve(
-  "bindings/kotlin/target/spec-converter-kotlin-0.1.0.jar",
+  `bindings/kotlin/target/spec-converter-kotlin-${version}.jar`,
 );
 const kotlinCheck = join(output, "kotlin-check.jar");
 run(
@@ -135,17 +103,11 @@ run("go", ["build", "-o", goCheck, "./cmd/bindingcheck"], {
     GOTOOLCHAIN: "local",
   },
 });
-const swiftArgs = [
-  "-Xlinker",
-  `-L${nativeDir}`,
-  "-Xlinker",
-  "-rpath",
-  "-Xlinker",
-  nativeDir,
-  ...(process.platform === "linux"
+// Swift loads the C ABI at runtime, so only the Linux segment policy applies.
+const swiftArgs =
+  process.platform === "linux"
     ? ["-Xlinker", "-z", "-Xlinker", "separate-code"]
-    : []),
-];
+    : [];
 run("swift", [
   "build",
   "-c",

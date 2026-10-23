@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, join, resolve } from "node:path";
+import { version } from "./native-build.mjs";
 
 const run = (command, args, options = {}) =>
   execFileSync(command, args, { stdio: "inherit", ...options });
@@ -60,7 +61,7 @@ run(
     "build",
     "octri-spec-converter.gemspec",
     "--output",
-    join(output, "octri-spec-converter-0.1.0.gem"),
+    join(output, `octri-spec-converter-${version}.gem`),
   ],
   { cwd: resolve("bindings/ruby") },
 );
@@ -74,7 +75,7 @@ function sourceArchive(name, files, cwd = process.cwd()) {
       "--exclude=.DS_Store",
       "--exclude=__MACOSX",
       "-czf",
-      join(output, `${name}-0.1.0.tar.gz`),
+      join(output, `${name}-${version}.tar.gz`),
       ...files,
     ],
     {
@@ -123,7 +124,7 @@ writeFileSync(
   join(output, "manifest.json"),
   JSON.stringify(
     {
-      version: "0.1.0",
+      version,
       abiVersion: 1,
       platform: process.platform,
       architecture: process.arch,
