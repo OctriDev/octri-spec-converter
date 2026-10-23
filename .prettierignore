@@ -1,4 +1,5 @@
 vendor/
+crates/octri-converter/schemas/
 node_modules/
 target/
 artifacts/

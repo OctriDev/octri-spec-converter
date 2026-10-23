@@ -300,12 +300,12 @@ fn check_conflicting_defaults(nodes: &BTreeSet<Address>, sources: &Sources) -> R
 
 /// The parser's pinned OpenAPI meta-schema also validates isolated external
 /// Schema Objects. This check never resolves references or loads new sources.
+/// The crate carries its own copy so it packages for crates.io;
+/// scripts/verify-vendor.mjs keeps it identical to the vendored parser's.
 fn validate_schema(value: &Value, at: &Address, sources: &Sources) -> Result<()> {
     let compiled = OPENAPI30.get_or_init(|| {
-        let schema: Value = serde_json::from_str(include_str!(
-            "../../../../vendor/octri-parser/schemas/openapi-3.0.json"
-        ))
-        .map_err(|error| error.to_string())?;
+        let schema: Value = serde_json::from_str(include_str!("../../schemas/openapi-3.0.json"))
+            .map_err(|error| error.to_string())?;
         jsonschema::options()
             .offline()
             .build_map(&schema)
