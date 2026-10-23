@@ -42,5 +42,15 @@ if (process.argv.includes("--update")) {
     throw new Error(
       "Vendored sources differ from the pinned snapshot. Review upstream changes and explicitly update the manifest.",
     );
+  // octri-converter embeds this schema from inside its own crate.
+  for (const file of ["openapi-3.0.json", "OAI-LICENSE"])
+    if (
+      !readFileSync(`crates/octri-converter/schemas/${file}`).equals(
+        readFileSync(`vendor/octri-parser/schemas/${file}`),
+      )
+    )
+      throw new Error(
+        `crates/octri-converter/schemas/${file} differs from the vendored parser's copy.`,
+      );
   console.log(`Verified ${Object.keys(hashes).length} vendored files.`);
 }
