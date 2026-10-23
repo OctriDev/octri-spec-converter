@@ -2,7 +2,7 @@ import Foundation
 import OctriSpecConverter
 
 let envelope = try JSONValue.decode(FileHandle.standardInput.readDataToEndOfFile())
-let converter = try Converter()
+let converter = try Converter(library: CommandLine.arguments[1])
 let response: JSONValue
 if ProcessInfo.processInfo.environment["OCTRI_BINDING_RAW"] != "1", envelope["abiVersion"] == .integer(1), let action = envelope["action"],
    [.string("convert"), .string("review"), .string("bundle"), .string("compare"), .string("export"), .string("formats"), .string("detect"), .string("batch")].contains(action) {

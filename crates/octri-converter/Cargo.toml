@@ -4,7 +4,9 @@ description = "Offline API description conversion with source provenance and rev
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
 license.workspace = true
 
 [dependencies]

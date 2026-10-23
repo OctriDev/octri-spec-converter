@@ -1,5 +1,10 @@
-import COctriConverter
 import Foundation
+
+#if canImport(Darwin)
+  import Darwin
+#else
+  import Glibc
+#endif
 
 public struct ConversionError: Error, Sendable {
   public let code: String
@@ -7,10 +12,75 @@ public struct ConversionError: Error, Sendable {
   public let diagnostics: JSONValue
 }
 
+/// The C ABI entry points of one loaded library. The library is never unloaded,
+/// so the function pointers stay valid for the life of the process.
+private struct NativeLibrary: @unchecked Sendable {
+  let abiVersion: @convention(c) () -> UInt32
+  let call: @convention(c) (UnsafePointer<UInt8>?, Int) -> OpaquePointer?
+  let data: @convention(c) (OpaquePointer?) -> UnsafeMutablePointer<UInt8>?
+  let length: @convention(c) (OpaquePointer?) -> Int
+  let free: @convention(c) (OpaquePointer?) -> Void
+
+  init(path: String) throws {
+    guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
+      let reason = dlerror().map { String(cString: $0) } ?? path
+      throw ConversionError(
+        code: "NATIVE_LIBRARY", message: "Cannot load native library: \(reason)",
+        diagnostics: .array([]))
+    }
+    func symbol<T>(_ name: String) throws -> T {
+      guard let address = dlsym(handle, name) else {
+        throw ConversionError(
+          code: "NATIVE_LIBRARY", message: "Native library lacks \(name)", diagnostics: .array([]))
+      }
+      return unsafeBitCast(address, to: T.self)
+    }
+    abiVersion = try symbol("octri_converter_abi_version")
+    call = try symbol("octri_converter_call")
+    data = try symbol("octri_converter_buffer_data")
+    length = try symbol("octri_converter_buffer_len")
+    free = try symbol("octri_converter_buffer_free")
+  }
+
+  /// The library this package bundles for the current platform.
+  static func bundled() throws -> String {
+    #if os(macOS) && arch(arm64)
+      let (platform, file) = ("darwin-arm64", "liboctri_converter_ffi.dylib")
+    #elseif os(Linux) && arch(x86_64)
+      let (platform, file) = ("linux-x64", "liboctri_converter_ffi.so")
+    #elseif os(Linux) && arch(arm64)
+      let (platform, file) = ("linux-arm64", "liboctri_converter_ffi.so")
+    #else
+      throw ConversionError(
+        code: "NATIVE_LIBRARY",
+        message: "No bundled native library for this platform; pass its path",
+        diagnostics: .array([]))
+    #endif
+    guard
+      let url = Bundle.module.url(
+        forResource: file, withExtension: nil, subdirectory: "native/\(platform)")
+    else {
+      throw ConversionError(
+        code: "NATIVE_LIBRARY",
+        message: "This build carries no native library for \(platform); pass its path",
+        diagnostics: .array([]))
+    }
+    return url.path
+  }
+}
+
 /// Synchronous, stateless facade. Call from a background task for large inputs.
 public struct Converter: Sendable {
+  private let native: NativeLibrary
+
+  /// Loads the native library bundled with this package for the current platform.
   public init() throws {
-    guard octri_converter_abi_version() == 1 else {
+    try self.init(library: NativeLibrary.bundled())
+  }
+
+  public init(library: String) throws {
+    native = try NativeLibrary(path: library)
+    guard native.abiVersion() == 1 else {
       throw ConversionError(
         code: "ABI_VERSION", message: "Expected converter ABI version 1", diagnostics: .array([]))
     }
@@ -24,16 +94,16 @@ public struct Converter: Sendable {
         diagnostics: .array([]))
     }
     let output = input.withUnsafeBytes { bytes in
-      octri_converter_call(bytes.baseAddress?.assumingMemoryBound(to: UInt8.self), bytes.count)
+      native.call(bytes.baseAddress?.assumingMemoryBound(to: UInt8.self), bytes.count)
     }
     guard let output else {
       throw ConversionError(
         code: "ALLOCATION", message: "Native converter returned a null buffer",
         diagnostics: .array([]))
     }
-    defer { octri_converter_buffer_free(output) }
-    let count = octri_converter_buffer_len(output)
-    guard let bytes = octri_converter_buffer_data(output) else { throw JSONTransportError.invalid }
+    defer { native.free(output) }
+    let count = native.length(output)
+    guard let bytes = native.data(output) else { throw JSONTransportError.invalid }
     return try JSONValue.decode(Data(bytes: bytes, count: count))
   }
 

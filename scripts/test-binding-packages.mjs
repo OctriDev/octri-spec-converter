@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, delimiter, join, resolve } from "node:path";
 import { checkElfPermissions } from "./binding-elf.mjs";
+import { version } from "./native-build.mjs";
 
 const root = process.cwd();
 const build = JSON.parse(readFileSync("artifacts/bindings/build.json", "utf8"));
@@ -69,7 +70,12 @@ const run = (command, args, options = {}) =>
 const extract = (language) => {
   const target = join(directory, language);
   mkdirSync(target, { recursive: true });
-  run("tar", ["-xzf", join(release, `${language}-0.1.0.tar.gz`), "-C", target]);
+  run("tar", [
+    "-xzf",
+    join(release, `${language}-${version}.tar.gz`),
+    "-C",
+    target,
+  ]);
   return target;
 };
 const passed = [];
@@ -109,10 +115,12 @@ try {
   run("gem", [
     "install",
     "--local",
+    // Its dependencies come from the host Ruby; release-verify.mjs resolves them.
+    "--ignore-dependencies",
     "--no-document",
     "--install-dir",
     gems,
-    join(release, "octri-spec-converter-0.1.0.gem"),
+    join(release, `octri-spec-converter-${version}.gem`),
   ]);
   const gemPaths = run("ruby", [
     "-e",
@@ -214,11 +222,11 @@ try {
   mkdirSync(goConsumer);
   writeFileSync(
     join(goConsumer, "go.mod"),
-    `module consumer\n\ngo 1.23\nrequire github.com/octridev/octri-spec-converter/bindings/go v0.0.0\nreplace github.com/octridev/octri-spec-converter/bindings/go => ${go}\n`,
+    `module consumer\n\ngo 1.23\nrequire github.com/octridev/octri-spec-converter-go v0.0.0\nreplace github.com/octridev/octri-spec-converter-go => ${go}\n`,
   );
   writeFileSync(
     join(goConsumer, "main.go"),
-    'package main\nimport("os";"encoding/json";p "github.com/octridev/octri-spec-converter/bindings/go")\nfunc main(){var input p.Request;if e:=json.Unmarshal([]byte(os.Args[1]),&input);e!=nil{panic(e)};r,e:=(p.Converter{}).Convert(input);if e!=nil{panic(e)};var value struct{Valid bool};if json.Unmarshal(r,&value)!=nil||!value.Valid{panic("invalid conversion")}}\n',
+    'package main\nimport("os";"encoding/json";p "github.com/octridev/octri-spec-converter-go")\nfunc main(){var input p.Request;if e:=json.Unmarshal([]byte(os.Args[1]),&input);e!=nil{panic(e)};r,e:=(p.Converter{}).Convert(input);if e!=nil{panic(e)};var value struct{Valid bool};if json.Unmarshal(r,&value)!=nil||!value.Valid{panic("invalid conversion")}}\n',
   );
   run("go", ["run", ".", spec], {
     cwd: goConsumer,
@@ -256,7 +264,7 @@ try {
   );
   writeFileSync(
     join(swiftConsumer, "Sources/Consumer/main.swift"),
-    'import Foundation\nimport OctriSpecConverter\nlet p=try Converter()\nlet r=try p.convert(JSONValue.decode(Data(CommandLine.arguments[1].utf8)))\nprecondition(r["valid"] == .bool(true))\n',
+    'import Foundation\nimport OctriSpecConverter\nlet p=try Converter(library:CommandLine.arguments[1])\nlet r=try p.convert(JSONValue.decode(Data(CommandLine.arguments[2].utf8)))\nprecondition(r["valid"] == .bool(true))\n',
   );
   run(
     "swift",
@@ -264,16 +272,11 @@ try {
       "run",
       "-c",
       "release",
-      "-Xlinker",
-      `-L${native}`,
-      "-Xlinker",
-      "-rpath",
-      "-Xlinker",
-      native,
       ...(process.platform === "linux"
         ? ["-Xlinker", "-z", "-Xlinker", "separate-code"]
         : []),
       "Consumer",
+      library,
       spec,
     ],
     { cwd: swiftConsumer },

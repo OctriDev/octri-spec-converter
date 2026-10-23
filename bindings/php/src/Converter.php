@@ -20,9 +20,10 @@ final class Converter
 {
     private \FFI $native;
 
-    public function __construct(string $library)
+    /** Without a path, loads the library bundled for this platform under native/. */
+    public function __construct(?string $library = null)
     {
-        $path = realpath($library);
+        $path = realpath($library ?? self::bundledLibrary());
         if ($path === false) {
             throw new \InvalidArgumentException(
                 "Native library does not exist",
@@ -35,6 +36,22 @@ final class Converter
         if ($this->native->octri_converter_abi_version() !== 1) {
             throw new \RuntimeException("Expected converter ABI version 1");
         }
+    }
+
+    private static function bundledLibrary(): string
+    {
+        $arch = match (php_uname("m")) {
+            "x86_64", "amd64" => "x64",
+            "aarch64", "arm64" => "arm64",
+            default => php_uname("m"),
+        };
+        $file = PHP_OS_FAMILY === "Darwin"
+            ? "liboctri_converter_ffi.dylib"
+            : "liboctri_converter_ffi.so";
+        return dirname(__DIR__) .
+            "/native/" .
+            strtolower(PHP_OS_FAMILY) .
+            "-$arch/$file";
     }
 
     /** Raw native JSON preserves integers beyond PHP's decoded numeric range. */

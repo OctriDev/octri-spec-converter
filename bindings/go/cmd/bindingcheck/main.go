@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	converter "github.com/octridev/octri-spec-converter/bindings/go"
+	converter "github.com/octridev/octri-spec-converter-go"
 	"io"
 	"os"
 )

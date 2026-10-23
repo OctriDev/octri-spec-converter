@@ -1,10 +1,13 @@
 [package]
 name = "octri-converter-cli"
+description = "Octri Spec Converter command-line interface"
 default-run = "octri-spec-convert"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
 license.workspace = true
 
 [[bin]]

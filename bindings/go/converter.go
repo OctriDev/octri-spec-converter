@@ -1,8 +1,13 @@
 // Package converter calls the Octri Rust engine through its versioned C ABI.
+// Build with CGO_ENABLED=1. Released modules link the static library under
+// lib/<goos>_<goarch>; elsewhere, add its directory to CGO_LDFLAGS with -L.
 package converter
 
 /*
 #cgo LDFLAGS: -loctri_converter_ffi
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/lib/darwin_arm64 -liconv
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/lib/linux_amd64 -lgcc_s -lutil -lrt -lpthread -lm -ldl
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/lib/linux_arm64 -lgcc_s -lutil -lrt -lpthread -lm -ldl
 #include "octri_converter.h"
 */
 import "C"

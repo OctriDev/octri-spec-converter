@@ -1,6 +1,6 @@
 name: octri_spec_converter
-version: 0.1.0
+version: 0.1.3
 description: Native bindings for the offline Octri Rust Spec Converter.
-publish_to: none
+repository: https://github.com/octridev/octri-spec-converter
 environment:
   sdk: ">=3.4.0 <4.0.0"

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 from . import _json as exact_json
 from pathlib import Path
 from typing import Any, Dict, Union
 
 JsonObject = Dict[str, Any]
+# Platform wheels carry the native library next to this module.
+BUNDLED_LIBRARY = Path(__file__).with_name("native") / (
+    "liboctri_converter_ffi.dylib"
+    if sys.platform == "darwin"
+    else "liboctri_converter_ffi.so"
+)
 
 
 class ConversionError(Exception):
@@ -20,8 +27,9 @@ class ConversionError(Exception):
 class Converter:
     """Calls block the current thread. Each call owns independent Rust state."""
 
-    def __init__(self, library: Union[str, Path]):
-        self._library = ctypes.CDLL(str(Path(library).resolve(strict=True)))
+    def __init__(self, library: Union[str, Path, None] = None):
+        path = Path(library) if library is not None else BUNDLED_LIBRARY
+        self._library = ctypes.CDLL(str(path.resolve(strict=True)))
         version = self._library.octri_converter_abi_version
         version.restype = ctypes.c_uint32
         if version() != 1:

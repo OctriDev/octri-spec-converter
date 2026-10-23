@@ -21,8 +21,10 @@ The complete static browser product is `@octri/spec-converter-web`.
 
 Package READMEs contain installation examples and hosting requirements. Npm
 wrapper patch versions can differ from the engine version recorded in results.
-Other language registries are separate distribution targets; source-build
-instructions remain below.
+Python, Ruby, PHP, Go, Java, Kotlin, Swift, Dart and Rust packages are on their
+own registries and bundle the native library for the same platforms; see the
+[bindings guide](bindings/README.md#installation). Source-build instructions
+remain below.
 
 ## Build and run
 

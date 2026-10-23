@@ -1,0 +1,337 @@
+name: Release language packages
+# Builds the native library on each platform, assembles every registry package
+# and installs each one on each platform before anything is published. A manual
+# run stops after verification; pushing a v<workspace version> tag publishes.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - id: read
+        run: |
+          version=$(node --input-type=module -e "import { version } from './scripts/native-build.mjs'; console.log(version)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match workspace version $version"
+            exit 1
+          fi
+
+  native:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-14]
+    runs-on: ${{ matrix.runner }}
+    # Linux libraries target Debian 12's glibc 2.36, as the npm addons do.
+    container: ${{ startsWith(matrix.runner, 'ubuntu-') && 'rust:1.95.0-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+      - if: runner.os == 'Linux'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends clang openjdk-17-jdk-headless
+          echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" >> "$GITHUB_ENV"
+      - if: runner.os == 'macOS'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: node scripts/release-native.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.runner }}
+          path: artifacts/native/
+          retention-days: 14
+
+  assemble:
+    needs: native
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: native-*
+          path: artifacts/native
+          merge-multiple: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python3 -m pip install build==1.6.1 wheel==0.48.0
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+        with:
+          ruby-version: "3.4"
+      - run: node scripts/release-assemble.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packages
+          path: artifacts/packages/
+          retention-days: 14
+
+  verify:
+    needs: assemble
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        language: [python, ruby, maven, dart, go, php, swift, c]
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.language == 'swift' && startsWith(matrix.runner, 'ubuntu-') && 'swift:6.2.3-noble@sha256:6dd90eb2359663a2cde8f03e9951f488b23134b3b8fce20e9dcb6cada75dd803' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - if: matrix.language == 'python'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - if: matrix.language == 'ruby'
+        uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+        with:
+          ruby-version: "3.4"
+      - if: matrix.language == 'maven'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - if: matrix.language == 'dart'
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          cache: false
+      - if: matrix.language == 'php'
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          extensions: ffi
+          tools: composer
+      - run: node scripts/release-verify.mjs ${{ matrix.language }}
+
+  publish-crates:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        id: auth
+      # Dependency order. A version crates.io already has is left alone, so a
+      # rerun after a partial failure finishes the set.
+      - run: |
+          for crate in octri-converter octri-converter-cli; do
+            if curl -sf -A octri-release "https://crates.io/api/v1/crates/$crate/$VERSION" > /dev/null; then
+              echo "$crate $VERSION is already on crates.io"
+            else
+              cargo publish --locked -p "$crate"
+            fi
+          done
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  publish-pypi:
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: artifacts/packages/python
+          skip-existing: true
+
+  publish-rubygems:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+        with:
+          ruby-version: "3.4"
+      - uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+      - run: |
+          published=$(curl -sf https://rubygems.org/api/v1/versions/octri-spec-converter.json || echo '[]')
+          for gem in artifacts/packages/ruby/*.gem; do
+            platform=$(basename "$gem" .gem); platform=${platform#octri-spec-converter-"$VERSION"-}
+            if echo "$published" | jq -e --arg v "$VERSION" --arg p "$platform" 'any(.[]; .number == $v and .platform == $p)' > /dev/null; then
+              echo "$gem is already on RubyGems"
+            else
+              gem push "$gem"
+            fi
+          done
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+
+  publish-pub:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - working-directory: artifacts/packages/dart
+        run: |
+          if curl -sf https://pub.dev/api/packages/octri_spec_converter | jq -e --arg v "$VERSION" 'any(.versions[]; .version == $v)' > /dev/null; then
+            echo "octri_spec_converter $VERSION is already on pub.dev"
+          else
+            dart pub publish --force
+          fi
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+
+  publish-maven:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      # Kotlin depends on the Java artifact, so Java goes first.
+      - run: |
+          for artifact in java:spec-converter kotlin:spec-converter-kotlin; do
+            project=${artifact%%:*}; name=${artifact#*:}
+            if curl -sfI "https://repo1.maven.org/maven2/dev/octri/$name/$VERSION/$name-$VERSION.pom" > /dev/null; then
+              echo "dev.octri:$name:$VERSION is already on Maven Central"
+            else
+              mvn -B -P release -f "artifacts/packages/maven/$project/pom.xml" deploy
+            fi
+          done
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+  # Go modules, Composer and SwiftPM install from git, so each of those packages
+  # is pushed with its libraries to a mirror repository and tagged there.
+  publish-mirrors:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            secret: MIRROR_GO_DEPLOY_KEY
+          - language: php
+            secret: MIRROR_PHP_DEPLOY_KEY
+          - language: swift
+            secret: MIRROR_SWIFT_DEPLOY_KEY
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - run: |
+          key="$RUNNER_TEMP/deploy-key"
+          printf '%s\n' "$DEPLOY_KEY" > "$key"
+          chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone "git@github.com:octridev/octri-spec-converter-$LANGUAGE.git" mirror
+          if git -C mirror ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "octri-spec-converter-$LANGUAGE already has v$VERSION"
+            exit 0
+          fi
+          rsync -a --delete --exclude .git "artifacts/packages/$LANGUAGE/" mirror/
+          cd mirror
+          git add -A
+          git -c user.name=octri-dev -c user.email=founders@octri.dev commit -q -m "release: v$VERSION"
+          git -c user.name=octri-dev -c user.email=founders@octri.dev tag -a "v$VERSION" -m "v$VERSION"
+          git push -q origin HEAD:main "v$VERSION"
+        env:
+          LANGUAGE: ${{ matrix.language }}
+          VERSION: ${{ needs.version.outputs.version }}
+          DEPLOY_KEY: ${{ secrets[matrix.secret] }}
+      - if: matrix.language == 'go'
+        run: curl -sf "https://proxy.golang.org/github.com/octridev/octri-spec-converter-go/@v/v$VERSION.info"
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+
+  github-release:
+    needs: [version, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/packages
+      - run: |
+          if ! gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "Rust engine $VERSION" \
+              --notes "C library, header and notices for each platform. Language packages are on their registries."
+          fi
+          gh release upload "$GITHUB_REF_NAME" artifacts/packages/c/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}

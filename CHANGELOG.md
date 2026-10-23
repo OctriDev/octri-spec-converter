@@ -2,6 +2,8 @@
 
 ## 0.1.3
 
+- Publish the language bindings: PyPI, RubyGems, Maven Central, pub.dev and crates.io packages, Go, PHP and Swift mirror repositories, and C archives on the GitHub release. Each package carries the native library for Linux x64 and arm64 (glibc 2.36+) and macOS arm64, and its no-argument constructor loads it.
+- The Swift binding loads the library with `dlopen` instead of linking a system library, and the Go module path is `github.com/octridev/octri-spec-converter-go`. The Ruby gem declares `bigdecimal` and `fiddle`, which leave Ruby's default gems in 3.4 and 4.0.
 - Update embedded readiness auditing to ruleset `1.0.3`, preserving authored operation IDs with unfamiliar action verbs and retaining collision-safe duplicate-action repairs.
 - Rebuild native bindings and browser assets; npm packages ship as `0.1.6`.
 

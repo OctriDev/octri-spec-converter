@@ -19,17 +19,43 @@ platform-specific release artifacts.
 | Kotlin   | JVM 11 or later                              | Java/JNI facade                    |
 | PHP      | PHP 8.1 or later with FFI enabled            | C ABI                              |
 | Ruby     | Ruby 3.1 or later                            | Fiddle and C ABI                   |
-| Swift    | Swift 6; macOS 13 or supported Linux runtime | C module                           |
+| Swift    | Swift 6; macOS 13 or supported Linux runtime | C ABI loaded with `dlopen`         |
 | Dart     | Dart 3.4 or later                            | `dart:ffi`                         |
 
 Native libraries must match the host architecture and operating system. A
 macOS arm64 package cannot qualify Linux or Windows. CI configuration declares
 platform checks; use completed runs and platform-specific manifests when distributing.
 Java and Kotlin need their bundled Jackson/runtime dependencies alongside the
-binding JARs. Go and Swift need a C compiler/linker; PHP deployments must allow
+binding JARs. Go needs a C compiler/linker; PHP deployments must allow
 FFI explicitly. These are local library requirements, not Octri services.
 Building Python wheels additionally requires a Python runtime supported by
 setuptools 77 or later. The installed binding retains its Python 3.8 runtime floor.
+
+## Installation
+
+Every native package carries the library for Linux x64 and arm64 (glibc 2.36 or
+later) and macOS arm64, and its no-argument constructor loads that copy. Pass a
+library path instead to use a library you built, or on another platform.
+
+| Language | Install                                                  |
+| -------- | -------------------------------------------------------- |
+| Python   | `pip install octri-spec-converter`                       |
+| Ruby     | `gem install octri-spec-converter`                       |
+| PHP      | `composer require octri/spec-converter`                  |
+| Go       | `go get github.com/octridev/octri-spec-converter-go`     |
+| Java     | `dev.octri:spec-converter` on Maven Central              |
+| Kotlin   | `dev.octri:spec-converter-kotlin` on Maven Central       |
+| Swift    | `https://github.com/octridev/octri-spec-converter-swift` |
+| Dart     | `dart pub add octri_spec_converter`                      |
+| Rust     | `cargo add octri-converter`                              |
+| C        | Header and libraries on each GitHub release              |
+
+Go, PHP and Swift install from git, so their packages live in mirror
+repositories that the `Release language packages` workflow updates; their
+sources are maintained here. That workflow builds the native library on each
+platform, assembles every package, installs each one with its package manager on
+each platform (`scripts/release-native.mjs`, `release-assemble.mjs` and
+`release-verify.mjs`), and publishes when a `v<version>` tag is pushed.
 
 ## Contract and ownership
 
@@ -78,7 +104,7 @@ native language facades. `test-binding-packages` installs or extracts release
 artifacts outside the checkout and tests relocated libraries and fresh consumers.
 It includes Rust as well as Python, Ruby, PHP, Java, Kotlin, Go, Dart and Swift.
 Node/browser package tests separately check installed entry points and TypeScript
-declarations. None of these commands publishes packages.
+declarations. None of these commands publishes packages; see [Installation](#installation).
 
 Release artifacts live under `artifacts/release/<platform>-<architecture>` with
 SHA-256 manifests, native libraries, source packages and legal notices. Keep
