@@ -238,6 +238,9 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages
@@ -246,19 +249,18 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          server-id: central
-          server-username: MAVEN_CENTRAL_USERNAME
-          server-password: MAVEN_CENTRAL_PASSWORD
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      # Kotlin depends on the Java artifact, so Java goes first.
+      # Kotlin depends on the Java artifact, so Java goes first. Maven builds and
+      # signs; release-maven.mjs uploads (its header says why not the plugin).
       - run: |
           for artifact in java:spec-converter kotlin:spec-converter-kotlin; do
             project=${artifact%%:*}; name=${artifact#*:}
             if curl -sfI "https://repo1.maven.org/maven2/dev/octri/$name/$VERSION/$name-$VERSION.pom" > /dev/null; then
               echo "dev.octri:$name:$VERSION is already on Maven Central"
             else
-              mvn -B -P release -f "artifacts/packages/maven/$project/pom.xml" deploy
+              (cd "artifacts/packages/maven/$project" && mvn -B -P release -DskipTests install)
+              node scripts/release-maven.mjs "artifacts/packages/maven/$project"
             fi
           done
         env:
