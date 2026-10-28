@@ -100,11 +100,17 @@ fn hosted_parser_accepts_checked_retrieval_aliases_and_original_bom_bytes()
 #[test]
 fn parser_transport_rejects_abi_changes_expansion_and_host_capabilities()
 -> Result<(), Box<dyn std::error::Error>> {
+    let mut expanded = request();
+    expanded["request"]["options"]["limits"] = json!({"maxNodes":2_000_000});
+    let (code, output) = execute(expanded)?;
+    assert_eq!(code, 0, "{output}");
+    assert_eq!(output["Ok"]["valid"], true, "{output}");
+
     for (pointer, value, expected) in [
         ("/abiVersion", json!(2), "ABI_VERSION"),
         (
             "/request/options/limits",
-            json!({"maxNodes":1_000_001}),
+            json!({"maxNodes":2_000_001}),
             "INVALID_OPTIONS",
         ),
         (

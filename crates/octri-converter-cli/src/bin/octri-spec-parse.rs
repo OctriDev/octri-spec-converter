@@ -23,7 +23,7 @@ fn check_limits(limits: &Limits) -> octri_parser::Result<()> {
         (limits.max_document_bytes, maximum.max_document_bytes),
         (limits.max_total_bytes, maximum.max_total_bytes),
         (limits.max_documents, maximum.max_documents),
-        (limits.max_nodes, maximum.max_nodes),
+        (limits.max_nodes, 2_000_000),
         (limits.max_depth, maximum.max_depth),
         (limits.max_output_bytes, maximum.max_output_bytes),
         (limits.max_diagnostics, maximum.max_diagnostics),

@@ -530,6 +530,44 @@ fn shared_subtree_export_checks_bytes_before_cloning() {
 }
 
 #[test]
+fn shared_subtree_expansion_obeys_configured_node_limit() {
+    use octri_parser::{Address, Graph};
+    use std::collections::BTreeMap;
+
+    let graph = Graph {
+        root: 0,
+        nodes: vec![
+            GraphNode::Object(BTreeMap::from([("a".into(), 1), ("b".into(), 1)])),
+            GraphNode::Array(vec![2, 2]),
+            GraphNode::Scalar(json!("value")),
+        ],
+        origins: vec![Address::default(); 3],
+        circular: false,
+    };
+    let mut limits = octri_parser::Limits {
+        max_nodes: 6,
+        ..Default::default()
+    };
+    for error in [
+        graph.check_output(&limits).unwrap_err(),
+        graph.to_value(&limits).unwrap_err(),
+    ] {
+        assert!(
+            error
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "LIMIT_OUTPUT_NODES")
+        );
+    }
+    limits.max_nodes = 7;
+    graph.check_output(&limits).unwrap();
+    assert_eq!(
+        graph.to_value(&limits).unwrap(),
+        json!({"a": ["value", "value"], "b": ["value", "value"]})
+    );
+}
+
+#[test]
 fn yaml_alias_bytes_are_bounded_before_expansion() {
     let text = format!(
         "openapi: 3.1.2\ninfo: {{title: Pets, version: '1'}}\npaths: {{}}\nx-base: &base '{}'\nx-a: *base\nx-b: *base\n",

@@ -104,7 +104,7 @@ impl Limits {
             (self.max_document_bytes, ceiling.max_document_bytes),
             (self.max_total_bytes, ceiling.max_total_bytes),
             (self.max_documents, ceiling.max_documents),
-            (self.max_nodes, ceiling.max_nodes),
+            (self.max_nodes, 2_000_000),
             (self.max_depth, ceiling.max_depth),
             (self.max_output_bytes, ceiling.max_output_bytes),
             (self.max_decisions, ceiling.max_decisions),
@@ -405,3 +405,22 @@ impl From<octri_parser::ParserError> for ConversionError {
 }
 
 pub type Result<T> = std::result::Result<T, ConversionError>;
+
+#[cfg(test)]
+mod tests {
+    use super::Limits;
+
+    #[test]
+    fn node_limit_default_and_ceiling_are_distinct() {
+        let mut limits = Limits::default();
+        assert_eq!(limits.max_nodes, 1_000_000);
+        assert!(limits.validate().is_ok());
+        limits.max_nodes = 2_000_000;
+        assert!(limits.validate().is_ok());
+        assert_eq!(limits.parser().max_nodes, 2_000_000);
+        limits.max_nodes = 2_000_001;
+        assert!(matches!(limits.validate(), Err(error) if error.code == "INVALID_LIMITS"));
+        limits.max_nodes = 0;
+        assert!(matches!(limits.validate(), Err(error) if error.code == "INVALID_LIMITS"));
+    }
+}
