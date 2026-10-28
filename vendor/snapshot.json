@@ -59,7 +59,7 @@
     "octri-parser/src/validate.rs": "ed14fc5f1332816c141347046e28ab796a907caf2eeb0d46af5d44c132f19779",
     "octri-parser/src/wire.rs": "f8a2d32644ab13176833bf761246f785dcd43724f1c24c2c9aa471524dc0dca4",
     "octri-parser/tests/bundle_sources.rs": "f6ad9175778fa191697d1d6f19d843fb361af85dec2fb78e28a4f2a0a6b5d64c",
-    "octri-parser/tests/core.rs": "9cacd6c87ec256b066e3c7517deacac38ab6379fe78f55ec8091533f08daebaa",
+    "octri-parser/tests/core.rs": "da8d7425bff58672c369ec401f8bcfe086a86b21c382a229aebed498e2b91f9e",
     "octri-parser/tests/draft201909.rs": "fe335663f932b4fa8f41ee9dd26e53889ed9104bb0f80150fa962cf3ac2d01dc",
     "octri-parser/tests/draft4.rs": "48744b94285ac5d64874ce9d4eaf65905f1c51a5b76f9e117fdc5e32fa364477",
     "octri-parser/tests/draft7.rs": "5ca6052ad23568de58bd8890c3b7e1ee186dc453ba3a26aed3b83c3bb9f72c4e",
