@@ -1,6 +1,6 @@
 {
   "name": "octri-spec-converter-workspace",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "node": ">=22.19"
   },
   "scripts": {
-    "check": "node scripts/cargo.mjs test --workspace",
+    "check": "cargo test --workspace",
     "build:node": "node scripts/build-node.mjs",
     "build:wasm": "node scripts/build-wasm.mjs",
     "build:bindings": "node scripts/build-bindings.mjs",

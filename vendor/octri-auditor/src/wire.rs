@@ -103,8 +103,7 @@ fn value(value: impl Serialize) -> Result<Value> {
 }
 pub fn encode<T: Serialize>(result: Result<T>) -> String {
     match serde_json::to_string(&result) {
-        Ok(output) if output.len()<=MAX_ENVELOPE_BYTES=>output,
-        Ok(_)=>"{\"Err\":{\"code\":\"LIMIT_OUTPUT_BYTES\",\"message\":\"Auditor result exceeds 128 MiB\",\"diagnostics\":[]}}".into(),
+        Ok(output) => output,
         Err(_)=>"{\"Err\":{\"code\":\"SERIALIZATION\",\"message\":\"Could not serialize auditor result\",\"diagnostics\":[]}}".into(),
     }
 }

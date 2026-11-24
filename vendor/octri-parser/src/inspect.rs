@@ -8,10 +8,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(crate) fn inspect(session: &Session<'_>) -> Inspection {
-    let root = Address {
-        uri: session.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let root = Address::root(&session.root_uri);
     let document = session.value(&root).unwrap_or(&Value::Null);
     let mut collector = Collector {
         session,

@@ -234,7 +234,7 @@ pub fn convert(request: &ConversionRequest) -> Result<ConversionReport> {
     let handoff_allowed = valid && status == Status::Complete;
     let mut diagnostics = validated.diagnostics;
     if trace.truncated {
-        checks.push(Check{id:"fidelity-coverage".into(),status:"failed".into(),detail:"Decision limit reached. Increase the lowered limit or split the source; incomplete fidelity reports cannot complete.".into()});
+        checks.push(Check{id:"fidelity-coverage".into(),status:"failed".into(),detail:"Credential choices exceed the report byte limit. Split the collection; incomplete fidelity reports cannot complete.".into()});
     }
     // Stable ordering is part of the portable report contract.
     diagnostics.sort_by(|a, b| {

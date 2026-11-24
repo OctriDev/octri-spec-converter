@@ -1,11 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync, cpSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { rustEnvironment } from "./toolchain.mjs";
 
 const metadata = JSON.parse(
   execFileSync("cargo", ["metadata", "--locked", "--format-version", "1"], {
-    env: rustEnvironment(),
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
   }),

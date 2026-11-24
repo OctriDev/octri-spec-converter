@@ -13,13 +13,11 @@ pub(crate) struct Trace {
     pub mapping_requests: BTreeMap<String, MappingRequest>,
     pub duplicate_requests: BTreeMap<String, DuplicateRequest>,
     pub credential_requests: BTreeMap<String, CredentialSelectionRequest>,
-    credential_units: usize,
     credential_bytes: usize,
     max_credential_bytes: usize,
     source_hashes: BTreeMap<String, String>,
     keys: BTreeSet<String>,
     accepted: BTreeSet<String>,
-    max: usize,
     pub truncated: bool,
     context_hash: String,
 }
@@ -42,7 +40,6 @@ impl Trace {
             mapping_requests: BTreeMap::new(),
             duplicate_requests: BTreeMap::new(),
             credential_requests: BTreeMap::new(),
-            credential_units: 0,
             credential_bytes: 2,
             max_credential_bytes: config
                 .limits
@@ -51,7 +48,6 @@ impl Trace {
             source_hashes,
             keys: BTreeSet::new(),
             accepted: config.accepted_decisions.clone(),
-            max: config.limits.max_decisions,
             truncated: false,
             context_hash: hash(context.as_bytes()),
         }
@@ -85,10 +81,6 @@ impl Trace {
         if self.keys.contains(&id) {
             return;
         }
-        if self.decisions.len() >= self.max {
-            self.truncated = true;
-            return;
-        }
         self.keys.insert(id.clone());
         let review_required = matches!(
             class,
@@ -117,12 +109,6 @@ impl Trace {
     }
 
     pub fn describe_mapping(&mut self, request: MappingRequest) {
-        if self.mapping_requests.len() >= self.max
-            && !self.mapping_requests.contains_key(&request.key)
-        {
-            self.truncated = true;
-            return;
-        }
         self.mapping_requests.insert(request.key.clone(), request);
     }
 
@@ -132,15 +118,6 @@ impl Trace {
 
     pub fn describe_credentials(&mut self, request: CredentialSelectionRequest) -> bool {
         let key = request.request.address.pointer.clone();
-        let previous = self
-            .credential_requests
-            .get(&key)
-            .map_or(0, |request| 1 + request.choices.len());
-        let units = self
-            .credential_units
-            .saturating_sub(previous)
-            .saturating_add(1)
-            .saturating_add(request.choices.len());
         let previous_bytes = self
             .credential_requests
             .get(&key)
@@ -155,15 +132,15 @@ impl Trace {
             .saturating_sub(previous_bytes)
             .saturating_add(request_bytes)
             .saturating_add(usize::from(
-                previous == 0 && !self.credential_requests.is_empty(),
+                !self.credential_requests.is_empty()
+                    && !self.credential_requests.contains_key(&key),
             ));
-        // Count choices as well as requests: inherited arrays must not create
-        // an unbounded Cartesian product in a structured review report.
-        if units > self.max || bytes > self.max_credential_bytes {
+        // Inherited credential arrays multiply across requests; bound the
+        // structured review report by bytes, not by request count.
+        if bytes > self.max_credential_bytes {
             self.truncated = true;
             return false;
         }
-        self.credential_units = units;
         self.credential_bytes = bytes;
         self.credential_requests.insert(key, request);
         true
@@ -179,12 +156,6 @@ impl Trace {
     }
 
     pub fn describe_duplicate(&mut self, request: DuplicateRequest) {
-        if self.duplicate_requests.len() >= self.max
-            && !self.duplicate_requests.contains_key(&request.identity)
-        {
-            self.truncated = true;
-            return;
-        }
         self.duplicate_requests
             .insert(request.identity.clone(), request);
     }

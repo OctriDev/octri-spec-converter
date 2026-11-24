@@ -45,20 +45,13 @@ pub(crate) fn validate(session: &Session<'_>, inspection: &Inspection) -> Vec<Di
 /// Validate the authored root shape, then resolved path declarations. External
 /// target shapes and audit-only semantics remain available through strict mode.
 fn compatible(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic> {
-    let mut diagnostics =
-        crate::diagnostics::Diagnostics::new(session.options.limits.max_diagnostics);
-    let root = Address {
-        uri: session.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let mut diagnostics = Vec::new();
+    let root = Address::root(&session.root_uri);
     if session.options.validate.schema {
         match validator(session.dialect) {
             Ok(validators) => match (validators.get("#"), session.value(&root)) {
                 (Some(validator), Some(document)) => {
-                    for error in validator
-                        .iter_errors(document)
-                        .take(session.options.limits.max_diagnostics)
-                    {
+                    for error in validator.iter_errors(document) {
                         diagnostics.push(error_at(
                             session,
                             "OPENAPI_SCHEMA",
@@ -87,9 +80,6 @@ fn compatible(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic>
     }
     if session.options.validate.spec {
         for operation in &inspection.operations {
-            if diagnostics.full() {
-                break;
-            }
             if operation.kind != "path" {
                 continue;
             }
@@ -127,16 +117,12 @@ fn compatible(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic>
         }
     }
     dialect_warnings(session, &mut diagnostics);
-    diagnostics.finish()
+    diagnostics
 }
 
 fn strict(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic> {
-    let mut diagnostics =
-        crate::diagnostics::Diagnostics::new(session.options.limits.max_diagnostics);
-    let root = Address {
-        uri: session.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let mut diagnostics = Vec::new();
+    let root = Address::root(&session.root_uri);
     if session.options.validate.schema {
         match validator(session.dialect) {
             Ok(validator) => match crate::bundle::bundle_with_sources(session) {
@@ -149,10 +135,7 @@ fn strict(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic> {
                             root.clone(),
                         )];
                     };
-                    for error in root_validator
-                        .iter_errors(&bundle.document)
-                        .take(session.options.limits.max_diagnostics)
-                    {
+                    for error in root_validator.iter_errors(&bundle.document) {
                         let path = error.instance_path().to_string();
                         let origin = bundle
                             .origins
@@ -245,9 +228,6 @@ fn strict(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic> {
             let mut draft201909_validator = None;
             let mut draft4_validator = None;
             for address in candidates {
-                if diagnostics.full() {
-                    break;
-                }
                 let Some(value) = session.value(address) else {
                     continue;
                 };
@@ -297,14 +277,11 @@ fn strict(session: &Session<'_>, inspection: &Inspection) -> Vec<Diagnostic> {
     if session.options.validate.spec {
         semantic(session, inspection, &mut diagnostics);
     }
-    diagnostics.finish()
+    diagnostics
 }
 
-fn dialect_warnings(session: &Session<'_>, diagnostics: &mut crate::diagnostics::Diagnostics) {
+fn dialect_warnings(session: &Session<'_>, diagnostics: &mut Vec<Diagnostic>) {
     let mut check = |address: &Address, key: &str, value: &Value| {
-        if diagnostics.full() {
-            return;
-        }
         if let Some(uri) = value.get(key).and_then(Value::as_str)
             && !known_dialect(uri)
         {
@@ -323,10 +300,7 @@ fn dialect_warnings(session: &Session<'_>, diagnostics: &mut crate::diagnostics:
         }
     };
     for source in session.sources.values() {
-        let address = Address {
-            uri: source.uri.clone(),
-            pointer: String::new(),
-        };
+        let address = Address::root(&source.uri);
         if let Some(value) = session.value(&address)
             && syntax::root_context(value) != Context::Schema
         {
@@ -347,7 +321,7 @@ fn dialect_warnings(session: &Session<'_>, diagnostics: &mut crate::diagnostics:
 fn validate_reference_targets(
     session: &Session<'_>,
     validators: &jsonschema::ValidatorMap,
-    diagnostics: &mut crate::diagnostics::Diagnostics,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut checked = BTreeSet::new();
     for edge in &session.references {
@@ -412,12 +386,7 @@ fn validate_reference_targets(
         let Some(validator) = validators.get(&format!("#/{definitions}/{definition}")) else {
             continue;
         };
-        let remaining = session
-            .options
-            .limits
-            .max_diagnostics
-            .saturating_sub(diagnostics.len());
-        for error in validator.iter_errors(value).take(remaining) {
+        for error in validator.iter_errors(value) {
             let address = Address {
                 uri: target.uri.clone(),
                 pointer: format!("{}{}", target.pointer, error.instance_path()),
@@ -462,17 +431,10 @@ fn reference_kind(pointer: &str, context: Context, value: Option<&Value>) -> Opt
     }
 }
 
-fn semantic(
-    session: &Session<'_>,
-    inspection: &Inspection,
-    diagnostics: &mut crate::diagnostics::Diagnostics,
-) {
+fn semantic(session: &Session<'_>, inspection: &Inspection, diagnostics: &mut Vec<Diagnostic>) {
     let mut identifiers: BTreeMap<&str, Location> = BTreeMap::new();
     let security_schemes = inspection.security_schemes.as_object();
     for operation in &inspection.operations {
-        if diagnostics.full() {
-            break;
-        }
         let at = &operation.location.address;
         if let Some(id) = operation.operation_id.as_deref()
             && let Some(previous) = identifiers.insert(id, operation.location.clone())
@@ -610,7 +572,7 @@ fn semantic(
 fn swagger_operation(
     session: &Session<'_>,
     operation: &crate::ApiOperation,
-    diagnostics: &mut crate::diagnostics::Diagnostics,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let at = &operation.location.address;
     let bodies = operation
@@ -704,7 +666,7 @@ fn swagger_operation(
     }
 }
 
-fn swagger_schemas(session: &Session<'_>, diagnostics: &mut crate::diagnostics::Diagnostics) {
+fn swagger_schemas(session: &Session<'_>, diagnostics: &mut Vec<Diagnostic>) {
     for (address, context) in &session.contexts {
         if !matches!(context.context, Context::Schema | Context::Api) {
             continue;
@@ -757,7 +719,7 @@ fn collect_properties(
     properties: &mut BTreeSet<String>,
 ) {
     let address = session.follow(address);
-    if seen.len() >= session.options.limits.max_nodes || !seen.insert(address.clone()) {
+    if !seen.insert(address.clone()) {
         return;
     }
     let Some(value) = session.value(&address) else {

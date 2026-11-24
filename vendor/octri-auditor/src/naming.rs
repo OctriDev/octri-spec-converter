@@ -458,12 +458,20 @@ pub fn namespace_conflicts(
         if let Some((child, parent)) = path.split_last()
             && let Some(previous) = methods.get(&(parent.to_vec(), child.to_ascii_lowercase()))
         {
-            conflicts.push((index, *previous, "Namespace child and method occupy the same public property. Review namespace or operationId before generation."));
+            conflicts.push((
+                index,
+                *previous,
+                "Namespace child and method occupy the same public property. Review namespace or operationId before generation.",
+            ));
         }
         let key = path.concat().to_ascii_lowercase();
         if let Some((previous_path, previous)) = flattened.get(&key) {
             if previous_path != &path {
-                conflicts.push((index, *previous, "Distinct namespace paths flatten to the same generated class or file name. Review namespace segments before generation."));
+                conflicts.push((
+                    index,
+                    *previous,
+                    "Distinct namespace paths flatten to the same generated class or file name. Review namespace segments before generation.",
+                ));
             }
         } else {
             flattened.insert(key, (path, index));

@@ -18,33 +18,6 @@ pub const SDK_LANGUAGES: &[&str] = &[
 ];
 
 pub fn validate(config: &Config) -> Result<()> {
-    if config.profiles.len() > 32
-        || config.ignored.len() > 10_000
-        || config.exclusions.len() > 10_000
-    {
-        return Err(AuditError::new(
-            "INVALID_CONFIG",
-            "Policy supports at most 32 profiles, 10000 ignored keys and 10000 exclusions",
-        ));
-    }
-    let limits = &config.limits;
-    if !(1..=24 * 1024 * 1024).contains(&limits.max_document_bytes)
-        || !(1..=64 * 1024 * 1024).contains(&limits.max_total_bytes)
-        || !(1..=100).contains(&limits.max_documents)
-        || !(1..=1_000_000).contains(&limits.max_nodes)
-        || !(1..=128).contains(&limits.max_depth)
-    {
-        return Err(AuditError::new(
-            "INVALID_CONFIG",
-            "Limits must be positive and at most 24 MiB/file, 64 MiB total, 100 files, 1000000 nodes and depth 128",
-        ));
-    }
-    if config.max_findings == 0 || config.max_findings > 10_000 {
-        return Err(AuditError::new(
-            "INVALID_CONFIG",
-            "maxFindings must be between 1 and 10000",
-        ));
-    }
     if config.profiles.is_empty() {
         return Err(AuditError::new(
             "INVALID_CONFIG",
@@ -119,15 +92,14 @@ pub fn validate(config: &Config) -> Result<()> {
 }
 
 pub fn validate_baseline(baseline: &Baseline) -> Result<()> {
-    if baseline.fingerprints.len() > 10_000
-        || baseline
-            .fingerprints
-            .iter()
-            .any(|value| value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    if baseline
+        .fingerprints
+        .iter()
+        .any(|value| value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()))
     {
         return Err(AuditError::new(
             "INVALID_CONFIG",
-            "Baseline supports at most 10000 SHA-256 fingerprints",
+            "Baseline fingerprints must be SHA-256 hex digests",
         ));
     }
     if baseline.schema_version != REPORT_VERSION || baseline.ruleset_version != RULESET_VERSION {

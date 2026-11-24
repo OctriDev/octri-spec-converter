@@ -327,7 +327,6 @@ fn validate_schema(value: &Value, at: &Address, sources: &Sources) -> Result<()>
     })?;
     let diagnostics: Vec<_> = validator
         .iter_errors(value)
-        .take(sources.limits.parser().max_diagnostics)
         .map(|error| Diagnostic {
             code: "OPENAPI_SCHEMA".into(),
             severity: Severity::Error,

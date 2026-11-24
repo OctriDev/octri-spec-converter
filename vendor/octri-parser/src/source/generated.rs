@@ -7,24 +7,7 @@ use serde_json::{Map, Number, Value};
 use std::collections::BTreeMap;
 use std::fmt;
 
-pub(crate) fn parse(uri: &str, text: String, limits: &Limits) -> Result<SourceDocument> {
-    read(uri, text, limits, true, true)
-}
-
-pub(super) fn parse_text(
-    uri: &str,
-    text: String,
-    limits: &Limits,
-    locations: bool,
-) -> Result<SourceDocument> {
-    read(uri, text, limits, false, locations)
-}
-
-pub(crate) fn parse_document(uri: &str, text: String, limits: &Limits) -> Result<SourceDocument> {
-    read(uri, text, limits, true, false)
-}
-
-fn read(
+pub(crate) fn read(
     uri: &str,
     text: String,
     limits: &Limits,
@@ -34,7 +17,6 @@ fn read(
     let mut state = State {
         uri,
         limits,
-        nodes: 0,
         locations: BTreeMap::new(),
         failure: None,
         capture_locations: locations,
@@ -42,7 +24,7 @@ fn read(
     if text.len() > limits.max_document_bytes {
         return Err(state.error("LIMIT_DOCUMENT_BYTES", "Document exceeds byte limit", ""));
     }
-    crate::wire::check_json_keys(uri, &text)?;
+    crate::wire::scan(uri, &text)?;
     // A UTF-8 signature is transport metadata. Keep it in the immutable source,
     // but exclude it from the JSON grammar for authored text only.
     let json = if generated {
@@ -89,7 +71,6 @@ fn read(
 struct State<'a> {
     uri: &'a str,
     limits: &'a Limits,
-    nodes: usize,
     locations: BTreeMap<String, Location>,
     failure: Option<ParserError>,
     capture_locations: bool,
@@ -126,14 +107,6 @@ impl<'de> DeserializeSeed<'de> for ValueSeed<'_, '_> {
             return Err(self.state.reject(
                 "LIMIT_DEPTH",
                 "Document exceeds nesting limit",
-                &self.pointer,
-            ));
-        }
-        self.state.nodes += 1;
-        if self.state.nodes > self.state.limits.max_nodes {
-            return Err(self.state.reject(
-                "LIMIT_NODES",
-                "Document exceeds node limit",
                 &self.pointer,
             ));
         }

@@ -229,8 +229,15 @@ fn xml_imports_and_entities_never_gain_ambient_io() -> Result<(), Box<dyn std::e
         "XML_DTD_DISABLED"
     );
     let mut limited = request("1.0", SCHEMA)?;
-    limited.config.limits.max_nodes = 30;
-    assert!(convert(&limited).is_err());
+    // The XSD model nodes, not the RAML documents, cross this budget.
+    limited.config.limits.max_nodes = 20;
+    assert_eq!(
+        convert(&limited)
+            .err()
+            .ok_or("XML model budget ignored")?
+            .code,
+        "LIMIT_NODES"
+    );
     Ok(())
 }
 
@@ -317,19 +324,10 @@ fn mixed_request(
 }
 
 #[test]
-fn json_and_xml_derived_resources_share_document_byte_and_node_limits()
+fn json_and_xml_derived_resources_share_byte_and_node_limits()
 -> Result<(), Box<dyn std::error::Error>> {
     let xml = r#"<x:schema xmlns:x="http://www.w3.org/2001/XMLSchema"><x:element name="Item" type="x:string"/></x:schema>"#;
-    let mut input = mixed_request(json!({"type":"string"}), xml, false)?;
-    input.config.limits.max_documents = 1;
-    assert_eq!(
-        convert(&input)
-            .err()
-            .ok_or("mixed document limit bypassed")?
-            .code,
-        "SCHEMA_DERIVED_LIMIT"
-    );
-    input.config.limits.max_documents = 2;
+    let input = mixed_request(json!({"type":"string"}), xml, false)?;
     let report = convert(&input)?;
     assert!(report.valid, "{:?}", report.diagnostics);
     assert!(

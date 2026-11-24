@@ -66,7 +66,7 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
         message: error.message,
         diagnostics: error.diagnostics,
     })?;
-    let mut raw = rules::run(&parsed, request.config.max_findings);
+    let mut raw = rules::run(&parsed);
     let supported = matches!(
         parsed.dialect,
         Some(
@@ -87,7 +87,12 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
                     || source.document.get("swaggerVersion").is_some())
         });
     if swagger {
-        raw.push("spec-integrity", "swagger-conversion-required".into(), octri_parser::Address { uri: request.input.uri.clone(), pointer: String::new() }.into(), "Swagger input requires conversion. Use Spec Converter to convert it to OpenAPI, review the converted document, then run the audit.");
+        raw.push(
+            "spec-integrity",
+            "swagger-conversion-required".into(),
+            octri_parser::Address::root(&request.input.uri).into(),
+            "Swagger input requires conversion. Use Spec Converter to convert it to OpenAPI, review the converted document, then run the audit.",
+        );
         if let Some(finding) = raw
             .values
             .last_mut()
@@ -102,7 +107,7 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
         .values
         .iter()
         .any(|finding| finding.rule_id == "schema-example-unverified");
-    let complete = valid && !raw.truncated && !incomplete_examples;
+    let complete = valid && !incomplete_examples;
     let mut findings = Vec::new();
     let mut ignored_findings = Vec::new();
     for mut finding in raw.values {
@@ -149,23 +154,75 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
         schemas: source::Sources(&parsed).schemas().len(),
     };
     let mut deducted = 0.0;
-    let by_rule: Vec<_> = catalogue::RULES.iter().map(|rule| {
-        let count = findings.iter().filter(|finding| finding.rule_id == rule.id).count();
-        let denominator = match rule.surface { "document" => 1, "paths" => surface.paths.max(1), "schemas" => surface.schemas.max(1), _ => surface.operations.max(1) };
-        let cost = if rule.id == "spec-integrity" { if !valid { 10.0 } else { 0.0 } }
-            else if count == 0 { 0.0 } else { rule.weight * (0.2 + 0.8 * (count as f64 / denominator as f64).min(1.0)) };
-        deducted += cost;
-        let disabled = request.config.rules.get(rule.id).is_some_and(|setting| setting.enabled == Some(false));
-        let unselected = !rules::categories_selected(rule.categories, &request.config.profiles);
-        let (status, reason) = if disabled || unselected { ("skipped", Some(if disabled { "Disabled by explicit rule policy" } else { "Outside selected compatibility profiles" }.into())) }
-            else if !supported { ("unsupported", Some("Unsupported or undetected dialect".into())) }
-            else if rule.id=="schema-example-valid"&&incomplete_examples{("unsupported",Some("At least one authored example could not be evaluated; see schema-example-unverified".into()))}
-            else if inspection.is_none() && rule.id != "spec-integrity" { ("skipped", Some("Parsing failed before an effective inventory was available".into())) }
-            else if count > 0 || rule.id == "spec-integrity" && !valid { ("failed", None) }
-            else if ignored_findings.iter().any(|finding| finding.rule_id == rule.id) { ("skipped", Some("All findings excluded by policy; review ignoredFindings".into())) }
-            else { ("checked", None) };
-        RuleResult { rule_id: rule.id.into(), title: rule.title.into(), weight: if rule.id == "spec-integrity" && !valid { 10.0 } else { rule.weight }, findings: count, deduction: round(cost, 2), denominator, status: status.into(), reason }
-    }).collect();
+    let by_rule: Vec<_> = catalogue::RULES
+        .iter()
+        .map(|rule| {
+            let integrity = rule.id == "spec-integrity";
+            let count = findings
+                .iter()
+                .filter(|finding| finding.rule_id == rule.id)
+                .count();
+            let denominator = match rule.surface {
+                "document" => 1,
+                "paths" => surface.paths.max(1),
+                "schemas" => surface.schemas.max(1),
+                _ => surface.operations.max(1),
+            };
+            let cost = if integrity {
+                if valid { 0.0 } else { 10.0 }
+            } else if count == 0 {
+                0.0
+            } else {
+                rule.weight * (0.2 + 0.8 * (count as f64 / denominator as f64).min(1.0))
+            };
+            deducted += cost;
+            let disabled = request
+                .config
+                .rules
+                .get(rule.id)
+                .is_some_and(|setting| setting.enabled == Some(false));
+            let selected = rules::categories_selected(rule.categories, &request.config.profiles);
+            let (status, reason) = if disabled {
+                ("skipped", Some("Disabled by explicit rule policy"))
+            } else if !selected {
+                ("skipped", Some("Outside selected compatibility profiles"))
+            } else if !supported {
+                ("unsupported", Some("Unsupported or undetected dialect"))
+            } else if rule.id == "schema-example-valid" && incomplete_examples {
+                (
+                    "unsupported",
+                    Some("At least one authored example could not be evaluated; see schema-example-unverified"),
+                )
+            } else if inspection.is_none() && !integrity {
+                (
+                    "skipped",
+                    Some("Parsing failed before an effective inventory was available"),
+                )
+            } else if count > 0 || integrity && !valid {
+                ("failed", None)
+            } else if ignored_findings
+                .iter()
+                .any(|finding| finding.rule_id == rule.id)
+            {
+                (
+                    "skipped",
+                    Some("All findings excluded by policy; review ignoredFindings"),
+                )
+            } else {
+                ("checked", None)
+            };
+            RuleResult {
+                rule_id: rule.id.into(),
+                title: rule.title.into(),
+                weight: if integrity && !valid { 10.0 } else { rule.weight },
+                findings: count,
+                deduction: round(cost, 2),
+                denominator,
+                status: status.into(),
+                reason: reason.map(Into::into),
+            }
+        })
+        .collect();
     let score = if complete {
         round((10.0 - deducted).max(0.0), 1)
     } else {
@@ -194,22 +251,18 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
             .iter()
             .filter(|finding| finding.severity == Severity::High)
             .count();
-        let skipped = applicable
-            .iter()
-            .filter(|result| result.status == "skipped")
-            .count();
-        let unsupported = applicable
-            .iter()
-            .filter(|result| result.status == "unsupported")
-            .count();
-        let checked = applicable
-            .iter()
-            .filter(|result| result.status == "checked")
-            .count();
-        let failed = applicable
-            .iter()
-            .filter(|result| result.status == "failed")
-            .count();
+        let with_status = |status: &str| {
+            applicable
+                .iter()
+                .filter(|result| result.status == status)
+                .count()
+        };
+        let (skipped, unsupported, checked, failed) = (
+            with_status("skipped"),
+            with_status("unsupported"),
+            with_status("checked"),
+            with_status("failed"),
+        );
         let status = if !valid || !complete || blockers > 0 {
             "blocked"
         } else if skipped > 0 || unsupported > 0 || !selected.is_empty() {
@@ -246,18 +299,13 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
             finding.severity >= request.config.fail_on
                 && (!request.config.fail_on_new || !finding.baseline)
         });
-    let mut coverage = vec![
+    let coverage = vec![
         "All readiness findings are static analysis. No docs, SDK or MCP generator was executed.".into(),
         "Security checks describe specification declarations; they do not certify runtime API security.".into(),
         "Custom JSON Schema dialect vocabularies and dynamic references require target-specific verification.".into(),
         "Authored examples use an offline JSON Schema resource registry. Unsupported custom vocabularies are reported individually.".into(),
         "SDK naming profile checks case/separator folding and namespace shortening; full generator allocation requires executed verification.".into(),
     ];
-    if raw.truncated {
-        coverage.push(
-            "Finding limit reached: report is incomplete, score is blocked and CI fails.".into(),
-        );
-    }
     let mut files: Vec<_> = parsed
         .sources
         .iter()
@@ -287,10 +335,18 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
         }
     }
     files.sort_by(|left, right| left.uri.cmp(&right.uri));
-    let profiles = expanded_profiles(&request.config.profiles).into_iter().map(|id| ProfileResult {
-        id, version: "1.0.0".into(), evidence: "static-analysis".into(), executed_verification: "unknown".into(),
-        limitations: vec!["Compatibility depends on the actual consumer and its version. No universal generator conformance is claimed.".into()],
-    }).collect();
+    let profiles = expanded_profiles(&request.config.profiles)
+        .into_iter()
+        .map(|id| ProfileResult {
+            id,
+            version: "1.0.0".into(),
+            evidence: "static-analysis".into(),
+            executed_verification: "unknown".into(),
+            limitations: vec![
+                "Compatibility depends on the actual consumer and its version. No universal generator conformance is claimed.".into(),
+            ],
+        })
+        .collect();
     let audit = AuditReport {
         schema_version: REPORT_VERSION.into(),
         manifest: Manifest {
@@ -334,12 +390,6 @@ pub fn audit_with_analysis(request: &AuditRequest) -> Result<AuditedSource> {
 
 pub(crate) fn canonical_files(request: &AuditRequest) -> Result<BTreeMap<String, String>> {
     let limits = &request.config.limits;
-    if request.files.len() >= limits.max_documents {
-        return Err(AuditError::new(
-            "LIMIT_FILES",
-            "Input exceeds the configured number of files",
-        ));
-    }
     let root = url::Url::parse(&request.input.uri).map_err(|_| {
         AuditError::new(
             "INPUT_URI",

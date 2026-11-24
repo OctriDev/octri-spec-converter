@@ -1,7 +1,7 @@
 //! JSON Pointer and URI fragment handling. Decode fragments exactly once.
 
 use crate::{Address, ParserError, Result};
-use percent_encoding::percent_decode_str;
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 use url::Url;
 
 pub fn child(pointer: &str, key: &str) -> String {
@@ -20,37 +20,6 @@ pub fn child(pointer: &str, key: &str) -> String {
         }
     }
     output
-}
-
-/// Borrow ordinary tokens instead of allocating two replacement strings for
-/// every level of every source lookup. Escaped tokens follow serde_json's rules.
-pub(crate) fn get<'a>(
-    mut value: &'a serde_json::Value,
-    pointer: &str,
-) -> Option<&'a serde_json::Value> {
-    use serde_json::Value;
-    use std::borrow::Cow;
-    if pointer.is_empty() {
-        return Some(value);
-    }
-    for token in pointer.strip_prefix('/')?.split('/') {
-        let token = if token.contains('~') {
-            Cow::Owned(token.replace("~1", "/").replace("~0", "~"))
-        } else {
-            Cow::Borrowed(token)
-        };
-        value = match value {
-            Value::Object(map) => map.get(token.as_ref())?,
-            Value::Array(values) => {
-                if token.starts_with('+') || token.starts_with('0') && token.len() != 1 {
-                    return None;
-                }
-                values.get(token.parse::<usize>().ok()?)?
-            }
-            _ => return None,
-        };
-    }
-    Some(value)
 }
 
 pub(crate) fn checked_url(reference: &str, base: &str, at: &Address) -> Result<Url> {
@@ -102,33 +71,25 @@ pub(crate) fn document_uri(url: &Url) -> String {
     url.to_string()
 }
 
+/// Characters with URI meaning are escaped; pointer separators and escapes stay.
+const FRAGMENT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'/')
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
+
 pub(crate) fn reference_to(pointer: &str) -> String {
-    // Preserve pointer separators and escapes; encode characters with URI meaning.
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    let mut output = String::with_capacity(pointer.len() + 1);
-    output.push('#');
-    for byte in pointer.bytes() {
-        if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) {
-            output.push(char::from(byte));
-        } else {
-            output.push('%');
-            output.push(char::from(HEX[(byte >> 4) as usize]));
-            output.push(char::from(HEX[(byte & 15) as usize]));
-        }
-    }
-    output
+    format!("#{}", utf8_percent_encode(pointer, FRAGMENT))
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     use super::*;
-    use serde_json::{Value, json};
+    use serde_json::json;
 
     #[test]
-    fn source_lookup_matches_serde_json_for_escaped_tokens_and_array_indexes() {
-        let mut root =
-            json!({"": {"items": ["first", {"a/b~c": 42}]}, "numeric": {"01":true,"+1":false}});
+    fn child_pointers_round_trip_escaped_keys_and_references_escape_uri_characters() {
         let keys = [
             "a/b",
             "a~b",
@@ -142,28 +103,11 @@ mod tests {
         ];
         for first in keys {
             for second in keys {
-                root[first] = json!({second: [0, 1, 2]});
+                let root = json!({ first: { second: true } });
                 let path = child(&child("", first), second);
-                assert!(get(&root, &path).is_some(), "{path}");
-                for suffix in [
-                    "",
-                    "/0",
-                    "/1",
-                    "/01",
-                    "/+1",
-                    "/-1",
-                    "/-",
-                    "/999999999999999999999999999",
-                ] {
-                    let pointer = format!("{path}{suffix}");
-                    assert_eq!(get(&root, &pointer), root.pointer(&pointer), "{pointer}");
-                }
+                assert_eq!(root.pointer(&path), Some(&json!(true)), "{path}");
             }
         }
-        for pointer in ["", "missing", "/missing", "/~2", "/~01", "/numeric/01"] {
-            assert_eq!(get(&root, pointer), root.pointer(pointer), "{pointer}");
-        }
         assert_eq!(reference_to("/a 😀#%?"), "#/a%20%F0%9F%98%80%23%25%3F");
-        assert_eq!(get(&Value::Null, ""), Some(&Value::Null));
     }
 }

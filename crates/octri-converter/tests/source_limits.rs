@@ -19,7 +19,6 @@ fn internal_envelopes_do_not_consume_physical_source_allowances()
         "operations":{"consume":{"action":"receive","channel":{"$ref":"#/channels/events"}}}});
     let content = document.to_string();
     let mut config = Config::default();
-    config.limits.max_documents = 1;
     config.limits.max_document_bytes = content.len();
     config.limits.max_total_bytes = content.len();
     config.limits.max_nodes = node_count(&document);

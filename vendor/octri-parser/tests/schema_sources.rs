@@ -1,8 +1,8 @@
 #![allow(clippy::expect_used)]
 
 use octri_parser::{
-    Address, Input, NoIo, Operation, Options, Request, ValidationMode,
-    bundle_schema_registry_sources, bundle_schema_sources, execute,
+    Address, Input, NoIo, Operation, Options, Request, SchemaRoot, ValidationMode,
+    bundle_schema_registry_with_dialects, execute,
 };
 use serde_json::{Value, json};
 
@@ -14,11 +14,12 @@ fn envelope(reference: &str) -> Input {
     }
 }
 
-fn root(uri: &str, pointer: &str) -> Address {
+fn root(uri: &str, pointer: &str) -> SchemaRoot {
     Address {
         uri: uri.into(),
         pointer: pointer.into(),
     }
+    .into()
 }
 
 #[test]
@@ -38,7 +39,7 @@ fn redirected_registry_keeps_unused_roots_inactive() -> Result<(), Box<dyn std::
         })
         .to_string(),
     );
-    let bundle = bundle_schema_registry_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!("{requested}#/payload")),
         vec![root(requested, "/payload")],
         vec![root(requested, "/components/schemas/Unused")],
@@ -75,7 +76,7 @@ fn available_registry_resolves_only_selected_transitive_resources()
         })
         .to_string(),
     );
-    let bundle = bundle_schema_registry_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!("{uri}#/payload")),
         vec![root(uri, "/payload")],
         ["Tree", "Label", "Unused", "TreeUnused"]
@@ -118,7 +119,7 @@ fn selected_registry_fragments_keep_enclosing_resource_scope()
         })
         .to_string(),
     );
-    let bundle = bundle_schema_registry_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!(
             "{uri}#/components/schemas/Resource/$defs/Selected"
         )),
@@ -174,12 +175,13 @@ fn foreign_roots_keep_shared_resource_anchors_dynamic_scope_and_origins()
         })
         .to_string(),
     );
-    let bundle = bundle_schema_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!("{uri}#/components/schemas/Tree")),
         vec![
             root(uri, "/components/schemas/Tree"),
             root(uri, "/components/schemas/Other"),
         ],
+        Vec::new(),
         options,
         &mut NoIo,
     )?;
@@ -209,9 +211,10 @@ fn schema_targets_are_discovered_without_activating_foreign_reference_objects()
     let uri = "memory://source/asyncapi.json";
     let mut options = Options::default();
     options.files.insert(uri.into(), json!({"asyncapi":"3.0.0","ignored":{"$ref":"missing.json"},"payload":{"$ref":"#/types/Next"},"types":{"Next":{"type":"object","properties":{"self":{"$ref":"#/payload"}}}}}).to_string());
-    let bundle = bundle_schema_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!("{uri}#/payload")),
         vec![root(uri, "/payload")],
+        Vec::new(),
         options,
         &mut NoIo,
     )?;
@@ -230,7 +233,13 @@ fn embedded_ids_resolve_without_fetching_logical_identifiers()
     let uri = "memory://source/schema.json";
     let mut options = Options::default();
     options.files.insert(uri.into(), json!({"$id":"https://schemas.example/root","$defs":{"child":{"$id":"child","$anchor":"value","type":"integer"}},"$ref":"child#value"}).to_string());
-    let bundle = bundle_schema_sources(envelope(uri), vec![root(uri, "")], options, &mut NoIo)?;
+    let bundle = bundle_schema_registry_with_dialects(
+        envelope(uri),
+        vec![root(uri, "")],
+        Vec::new(),
+        options,
+        &mut NoIo,
+    )?;
     reparse(bundle.document)
 }
 
@@ -246,9 +255,10 @@ fn cross_document_schema_cycles_remain_bounded_and_portable()
         "memory://source/b.json".into(),
         json!({"type":"object","properties":{"a":{"$ref":"a.json"}}}).to_string(),
     );
-    let bundle = bundle_schema_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope("memory://source/a.json"),
         vec![root("memory://source/a.json", "")],
+        Vec::new(),
         options,
         &mut NoIo,
     )?;
@@ -261,9 +271,10 @@ fn duplicate_ids_and_unsupplied_resources_fail_closed() {
     let uri = "memory://source/foreign.json";
     let mut options = Options::default();
     options.files.insert(uri.into(), json!({"a":{"$id":"https://schemas.example/duplicate"},"b":{"$id":"https://schemas.example/duplicate"}}).to_string());
-    let error = bundle_schema_sources(
+    let error = bundle_schema_registry_with_dialects(
         envelope(&format!("{uri}#/a")),
         vec![root(uri, "/a"), root(uri, "/b")],
+        Vec::new(),
         options,
         &mut NoIo,
     )
@@ -274,9 +285,10 @@ fn duplicate_ids_and_unsupplied_resources_fail_closed() {
             .iter()
             .any(|diagnostic| diagnostic.code == "DUPLICATE_RESOURCE")
     );
-    let error = bundle_schema_sources(
+    let error = bundle_schema_registry_with_dialects(
         envelope("https://unprovided.example/schema.json"),
         vec![root("https://unprovided.example/schema.json", "")],
+        Vec::new(),
         Options::default(),
         &mut NoIo,
     )
@@ -309,9 +321,10 @@ fn dynamic_scope_preserves_recursive_instance_validation() -> Result<(), Box<dyn
         uri.into(),
         json!({"asyncapi":"3.0.0","schemas":{"Tree":tree,"Strict":strict}}).to_string(),
     );
-    let bundle = bundle_schema_sources(
+    let bundle = bundle_schema_registry_with_dialects(
         envelope(&format!("{uri}#/schemas/Strict")),
         vec![root(uri, "/schemas/Tree"), root(uri, "/schemas/Strict")],
+        Vec::new(),
         options,
         &mut NoIo,
     )?;

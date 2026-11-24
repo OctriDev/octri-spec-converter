@@ -67,7 +67,6 @@ pub(crate) struct Sources {
 
 impl Sources {
     pub fn new(request: &ConversionRequest) -> Result<Self> {
-        request.config.limits.validate()?;
         let root = canonical_uri(&request.input.uri)?;
         let content = request.input.content.clone().ok_or_else(|| {
             ConversionError::new(
@@ -95,10 +94,9 @@ impl Sources {
             }
         }
         let limits = &request.config.limits;
-        if files.len() > limits.max_documents
-            || files
-                .values()
-                .any(|text| text.len() > limits.max_document_bytes)
+        if files
+            .values()
+            .any(|text| text.len() > limits.max_document_bytes)
             || files
                 .values()
                 .try_fold(0usize, |total, text| total.checked_add(text.len()))
@@ -106,7 +104,7 @@ impl Sources {
         {
             return Err(ConversionError::new(
                 "LIMIT_INPUT",
-                "Source bundle exceeds published file or byte limits",
+                "Source bundle exceeds the document or total byte limit",
             ));
         }
         Ok(Self {
@@ -141,8 +139,7 @@ impl Sources {
         if self.derived_resources.contains(identity) {
             return Ok(());
         }
-        if self.derived_resources.len() >= self.limits.max_documents
-            || self.derived_bytes.saturating_add(bytes) > self.limits.max_total_bytes
+        if self.derived_bytes.saturating_add(bytes) > self.limits.max_total_bytes
             || self.derived_nodes.saturating_add(nodes) > self.limits.max_nodes
         {
             return Err(derived_limit());
@@ -417,19 +414,13 @@ impl Sources {
                     _ => {}
                 }
             }
-            if derived.len() > self.limits.max_documents
-                || derived_nodes > self.limits.max_nodes
-                || derived_bytes > self.limits.max_total_bytes
+            if derived_nodes > self.limits.max_nodes || derived_bytes > self.limits.max_total_bytes
             {
-                return Err(ConversionError::new(
-                    "SCHEMA_DERIVED_LIMIT",
-                    "Embedded schemas exceed configured document, node or byte limits",
-                ));
+                return Err(derived_limit());
             }
             limits.max_document_bytes = limits.max_document_bytes.max(text.len());
             files.insert(uri.clone(), text);
         }
-        limits.max_documents = limits.max_documents.saturating_add(derived.len());
         limits.max_nodes = limits.max_nodes.saturating_add(derived_nodes);
         limits.max_total_bytes = limits.max_total_bytes.saturating_add(derived_bytes);
         let bundled = octri_parser::bundle_schema_registry_with_dialects(
@@ -489,11 +480,10 @@ impl Sources {
     }
 
     /// Internal documents have a separate, exact allowance. Admission still
-    /// checks physical file/byte caps in `new`, and `remember` checks physical
+    /// checks physical byte caps in `new`, and `remember` checks physical
     /// node totals. Final serialization checks output limits independently.
     pub fn generated_limits(&self, document: &Value, content: &str) -> octri_parser::Limits {
         let mut limits = self.limits.parser();
-        limits.max_documents += 1;
         limits.max_document_bytes = limits.max_document_bytes.max(content.len());
         limits.max_total_bytes += content.len();
         let mut queue = vec![document];
@@ -512,7 +502,7 @@ impl Sources {
 fn derived_limit() -> ConversionError {
     ConversionError::new(
         "SCHEMA_DERIVED_LIMIT",
-        "Embedded schemas exceed configured document, node or byte limits",
+        "Embedded schemas exceed the configured node or byte limits",
     )
 }
 

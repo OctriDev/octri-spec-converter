@@ -88,24 +88,6 @@ fn dispatch_result(input: &str) -> Result<Value> {
         Call::Detect { request, .. } => value(crate::detect(&request)?),
         Call::Formats { .. } => Ok(crate::formats()),
         Call::Batch { requests, .. } => {
-            if requests.is_empty() || requests.len() > 100 {
-                return Err(ConversionError::new(
-                    "BATCH_SIZE",
-                    "Supply between 1 and 100 requests",
-                ));
-            }
-            let total = requests.iter().try_fold(0usize, |total, request| {
-                request.files.values().try_fold(
-                    total.saturating_add(request.input.content.as_ref().map_or(0, String::len)),
-                    |total, text| total.checked_add(text.len()),
-                )
-            });
-            if total.is_none_or(|total| total > 20 * 1024 * 1024) {
-                return Err(ConversionError::new(
-                    "BATCH_INPUT_LIMIT",
-                    "Combined batch sources exceed 20 MiB; split the batch",
-                ));
-            }
             let mut results = Vec::new();
             let mut bytes = 0usize;
             for request in &requests {

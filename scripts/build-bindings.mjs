@@ -7,7 +7,6 @@ import {
   libraryFile,
   version,
 } from "./native-build.mjs";
-import { rustEnvironment } from "./toolchain.mjs";
 
 if (!["darwin", "linux"].includes(process.platform))
   throw new Error("Native bindings are qualified on macOS/Linux only");
@@ -16,19 +15,15 @@ const run = (command, args, options = {}) =>
 const output = resolve("artifacts/bindings");
 const nativeDir = resolve("target/release");
 mkdirSync(output, { recursive: true });
-run(
-  "cargo",
-  [
-    "build",
-    "--release",
-    "--locked",
-    "-p",
-    "octri-converter-ffi",
-    "-p",
-    "octri-converter-cli",
-  ],
-  { env: rustEnvironment() },
-);
+run("cargo", [
+  "build",
+  "--release",
+  "--locked",
+  "-p",
+  "octri-converter-ffi",
+  "-p",
+  "octri-converter-cli",
+]);
 copyFileSync(
   "bindings/c/include/octri_converter.h",
   "bindings/go/octri_converter.h",

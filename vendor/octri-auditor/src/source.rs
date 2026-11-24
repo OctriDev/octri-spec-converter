@@ -1,4 +1,4 @@
-//! Physical source lookup. Reference following is bounded and never expands schemas.
+//! Physical source lookup. Reference following stops at cycles and never expands schemas.
 
 use octri_parser::{Address, Location, Report};
 use serde_json::Value;
@@ -38,7 +38,7 @@ impl Sources<'_> {
     pub fn follow(&self, at: &Address) -> Address {
         let mut at = at.clone();
         let mut seen = BTreeSet::new();
-        while seen.len() < 128 && seen.insert(at.clone()) {
+        while seen.insert(at.clone()) {
             let Some(edge) = self.0.references.iter().find(|edge| {
                 edge.from.address.uri == at.uri
                     && edge.from.address.pointer == child(&at.pointer, "$ref")
@@ -90,10 +90,7 @@ impl Sources<'_> {
         let mut found = BTreeSet::new();
         let mut visited = BTreeSet::new();
         for source in &self.0.sources {
-            let root = Address {
-                uri: source.uri.clone(),
-                pointer: String::new(),
-            };
+            let root = Address::root(&source.uri);
             if source.document.get("openapi").is_some() || source.document.get("swagger").is_some()
             {
                 self.api_schemas(&root, &mut found, &mut visited, 0);

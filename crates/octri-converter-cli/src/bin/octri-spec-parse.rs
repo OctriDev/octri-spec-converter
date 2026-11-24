@@ -1,6 +1,6 @@
 //! Offline parser transport for hosts that cannot load the native bindings.
 //! Process isolation and deadlines belong to the service's existing supervisor.
-use octri_parser::{Address, Limits, NoIo, ParserError, Report, Request};
+use octri_parser::{Address, NoIo, ParserError, Report, Request};
 use serde::Deserialize;
 use std::io::{Read, Write};
 
@@ -15,30 +15,6 @@ struct Envelope {
 
 fn failure(code: &str, message: &str) -> ParserError {
     ParserError::new(code, message, Address::default())
-}
-
-fn check_limits(limits: &Limits) -> octri_parser::Result<()> {
-    let maximum = Limits::default();
-    let bounded = [
-        (limits.max_document_bytes, maximum.max_document_bytes),
-        (limits.max_total_bytes, maximum.max_total_bytes),
-        (limits.max_documents, maximum.max_documents),
-        (limits.max_nodes, maximum.max_nodes),
-        (limits.max_depth, maximum.max_depth),
-        (limits.max_output_bytes, maximum.max_output_bytes),
-        (limits.max_diagnostics, maximum.max_diagnostics),
-    ];
-    if bounded
-        .iter()
-        .any(|(value, ceiling)| *value == 0 || value > ceiling)
-        || limits.max_aliases > maximum.max_aliases
-    {
-        return Err(failure(
-            "INVALID_OPTIONS",
-            "Parser limits may lower but never exceed the service ceilings",
-        ));
-    }
-    Ok(())
 }
 
 fn execute() -> octri_parser::Result<Report> {
@@ -63,7 +39,6 @@ fn execute() -> octri_parser::Result<Report> {
     if envelope.abi_version != 1 {
         return Err(failure("ABI_VERSION", "Expected parser ABI version 1"));
     }
-    check_limits(&envelope.request.options.limits)?;
     let resolve = &envelope.request.options.resolve;
     if resolve.http || resolve.allow_private || resolve.file_root.is_some() {
         return Err(failure(

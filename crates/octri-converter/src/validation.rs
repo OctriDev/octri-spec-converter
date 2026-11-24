@@ -47,8 +47,7 @@ pub(crate) fn analyze(
                 limits: octri_auditor::AuditLimits {
                     max_document_bytes: limits.max_document_bytes,
                     max_total_bytes: limits.max_total_bytes,
-                    max_documents: files.len() + 1,
-                    max_nodes: limits.max_nodes.min(1_000_000),
+                    max_nodes: limits.max_nodes,
                     max_depth: limits.max_depth,
                 },
                 ..Default::default()

@@ -21,11 +21,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: node scripts/verify-vendor.mjs
-      - run: node scripts/cargo.mjs fmt --all -- --check
-      - run: node scripts/cargo.mjs clippy --workspace --all-targets --locked -- -D warnings
-      - run: node scripts/cargo.mjs test --workspace --locked
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - run: npm run build:node
-      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: cargo build --release --locked -p octri-converter-cli
       - run: npm run test:json
       - run: npm run test:ui:controller
       - run: npm run test:node
@@ -50,7 +50,7 @@ jobs:
       - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
       - run: npm run build:wasm
       - run: npm run build:node
-      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: cargo build --release --locked -p octri-converter-cli
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:wasm:node
       - run: npm run test:browser

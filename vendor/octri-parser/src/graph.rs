@@ -34,22 +34,24 @@ impl Graph {
     /// Export a JSON tree. Cycles and excessive shared-subtree expansion fail
     /// explicitly instead of being silently truncated or exhausting memory.
     pub fn to_value(&self, limits: &Limits) -> Result<Value> {
-        let mut active = BTreeSet::new();
-        limits.check()?;
-        let mut budget = ExportBudget::default();
-        self.export::<true>(self.root, 0, limits, &mut active, &mut budget)
+        self.export::<true>(
+            self.root,
+            0,
+            limits,
+            &mut BTreeSet::new(),
+            &mut Budget::default(),
+        )
     }
 
     /// Check exactly the same expansion budgets without allocating a JSON tree.
     /// Document bindings return the identity graph and do not need that copy.
     pub fn check_output(&self, limits: &Limits) -> Result<()> {
-        limits.check()?;
         self.export::<false>(
             self.root,
             0,
             limits,
             &mut BTreeSet::new(),
-            &mut ExportBudget::default(),
+            &mut Budget::default(),
         )
         .map(|_| ())
     }
@@ -62,15 +64,22 @@ impl Graph {
         depth: usize,
         limits: &Limits,
         active: &mut BTreeSet<NodeId>,
-        budget: &mut ExportBudget,
+        budget: &mut Budget,
     ) -> Result<Value> {
         let default = Address::default();
         let at = self.origins.get(id).unwrap_or(&default);
         budget.nodes += 1;
-        if budget.nodes > limits.max_nodes || depth > limits.max_depth {
+        if budget.nodes > limits.max_nodes {
             return Err(ParserError::new(
                 "LIMIT_OUTPUT_NODES",
-                "Expanded graph exceeds output limits",
+                "Expanded graph exceeds node limit",
+                at.clone(),
+            ));
+        }
+        if depth > limits.max_depth {
+            return Err(ParserError::new(
+                "LIMIT_DEPTH",
+                "Expanded graph exceeds nesting limit",
                 at.clone(),
             ));
         }
@@ -87,14 +96,16 @@ impl Graph {
         }
         let value = match self.nodes.get(id) {
             Some(GraphNode::Object(fields)) => {
-                budget.charge(
+                // Braces, separating commas and one colon per field.
+                charge(
+                    &mut budget.bytes,
                     2 + fields.len().saturating_sub(1) + fields.len(),
                     limits,
                     at,
                 )?;
                 let mut output = Map::new();
                 for (key, child) in fields {
-                    budget.json(key, limits, at)?;
+                    charge_json(&mut budget.bytes, key, limits, at)?;
                     let value = self.export::<BUILD>(*child, depth + 1, limits, active, budget)?;
                     if BUILD {
                         output.insert(key.clone(), value);
@@ -107,7 +118,12 @@ impl Graph {
                 }
             }
             Some(GraphNode::Array(values)) => {
-                budget.charge(2 + values.len().saturating_sub(1), limits, at)?;
+                charge(
+                    &mut budget.bytes,
+                    2 + values.len().saturating_sub(1),
+                    limits,
+                    at,
+                )?;
                 let mut output = Vec::new();
                 for child in values {
                     let value = self.export::<BUILD>(*child, depth + 1, limits, active, budget)?;
@@ -122,7 +138,7 @@ impl Graph {
                 }
             }
             Some(GraphNode::Scalar(value)) => {
-                budget.json(value, limits, at)?;
+                charge_json(&mut budget.bytes, value, limits, at)?;
                 if BUILD { value.clone() } else { Value::Null }
             }
             None => {
@@ -158,10 +174,7 @@ pub(crate) fn dereference(session: &Session<'_>) -> Result<Graph> {
             .collect(),
         copied_bytes: 0,
     };
-    let address = Address {
-        uri: session.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let address = Address::root(&session.root_uri);
     builder.graph.root = builder.build(&address, Context::Api, 0)?;
     Ok(builder.graph)
 }
@@ -423,12 +436,7 @@ impl Builder<'_, '_> {
         context: Context,
         depth: usize,
     ) -> Result<NodeId> {
-        let bytes = match value {
-            Value::String(value) => value.len(),
-            Value::Object(map) => map.keys().map(String::len).sum(),
-            _ => 0,
-        };
-        self.copied_bytes = self.copied_bytes.saturating_add(bytes);
+        self.copied_bytes += crate::output::copy_bytes(value);
         if self.copied_bytes > self.session.options.limits.max_output_bytes {
             return Err(ParserError::new(
                 "LIMIT_OUTPUT_BYTES",
@@ -529,32 +537,36 @@ impl Builder<'_, '_> {
 }
 
 #[derive(Default)]
-struct ExportBudget {
+struct Budget {
     nodes: usize,
     bytes: usize,
 }
-impl ExportBudget {
-    fn charge(&mut self, bytes: usize, limits: &Limits, at: &Address) -> Result<()> {
-        self.bytes = self.bytes.saturating_add(bytes);
-        if self.bytes > limits.max_output_bytes {
-            return Err(ParserError::new(
+
+fn charge(bytes: &mut usize, added: usize, limits: &Limits, at: &Address) -> Result<()> {
+    *bytes += added;
+    if *bytes > limits.max_output_bytes {
+        return Err(ParserError::new(
+            "LIMIT_OUTPUT_BYTES",
+            "Expanded graph exceeds byte budget",
+            at.clone(),
+        ));
+    }
+    Ok(())
+}
+
+fn charge_json(
+    bytes: &mut usize,
+    value: &impl Serialize,
+    limits: &Limits,
+    at: &Address,
+) -> Result<()> {
+    let added =
+        crate::output::measure_json(value, limits.max_output_bytes - *bytes).map_err(|_| {
+            ParserError::new(
                 "LIMIT_OUTPUT_BYTES",
                 "Expanded graph exceeds byte budget",
                 at.clone(),
-            ));
-        }
-        Ok(())
-    }
-    fn json(&mut self, value: &impl serde::Serialize, limits: &Limits, at: &Address) -> Result<()> {
-        let bytes =
-            crate::output::measure_json(value, limits.max_output_bytes.saturating_sub(self.bytes))
-                .map_err(|_| {
-                    ParserError::new(
-                        "LIMIT_OUTPUT_BYTES",
-                        "Expanded graph exceeds byte budget",
-                        at.clone(),
-                    )
-                })?;
-        self.charge(bytes, limits, at)
-    }
+            )
+        })?;
+    charge(bytes, added, limits, at)
 }

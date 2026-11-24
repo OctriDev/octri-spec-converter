@@ -95,7 +95,7 @@ export function postmanSchemaCases() {
       enum: Array.from({ length: 400 }, (_, index) => index),
     },
     {},
-    { limits: { maxDocuments: 1 } },
+    { limits: { maxNodes: 600 } },
   );
   const source = JSON.parse(limited.input.content);
   source.items.push({

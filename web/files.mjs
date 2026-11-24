@@ -44,7 +44,6 @@ export async function readText(file, limit = FILE_BYTES) {
 }
 
 export async function uploadedSources(list, existing) {
-  if (list.length > 100) throw new RangeError("Choose at most 100 files.");
   const next = new Map(existing);
   for (const file of list) {
     const path = file.webkitRelativePath || file.name;

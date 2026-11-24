@@ -32,7 +32,7 @@ Use the toolchain pinned in `rust-toolchain.toml` and Node 24. Native binding bu
 
 ```sh
 npm ci
-node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+cargo build --release --locked -p octri-converter-cli
 target/release/octri-spec-convert convert api.yaml --target 3.1.2 --out openapi.json
 ```
 
@@ -72,8 +72,8 @@ Reports retain original source text, physical locations, settings and hashes. Re
 
 ```sh
 node scripts/verify-vendor.mjs
-node scripts/cargo.mjs fmt --all -- --check
-node scripts/cargo.mjs clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
 npm run check
 npm run build:node
 node scripts/test-json.mjs

@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name = 'octri-spec-converter'
-  spec.version = '0.1.3'
+  spec.version = '0.2.0'
   spec.summary = 'Bindings for the offline Octri Rust Spec Converter'
   spec.authors = ['Octri contributors']
   spec.homepage = 'https://github.com/octridev/octri-spec-converter'

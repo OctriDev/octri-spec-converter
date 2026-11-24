@@ -22,20 +22,8 @@ pub struct ReadContext<'a> {
 }
 
 pub trait Resolver {
-    fn read(&mut self, uri: &str, context: ReadContext<'_>) -> Result<String>;
-
-    /// Return the final checked retrieval URI after redirects. Existing custom
-    /// resolvers retain their original behavior through this default method.
-    fn read_with_identity(
-        &mut self,
-        uri: &str,
-        context: ReadContext<'_>,
-    ) -> Result<ResolvedSource> {
-        self.read(uri, context).map(|content| ResolvedSource {
-            content,
-            retrieval_uri: uri.into(),
-        })
-    }
+    /// Return the content and its final retrieval URI after any redirects.
+    fn read(&mut self, uri: &str, context: ReadContext<'_>) -> Result<ResolvedSource>;
 }
 
 #[derive(Debug, Clone)]
@@ -47,14 +35,11 @@ pub struct ResolvedSource {
 #[derive(Debug, Default)]
 pub struct NoIo;
 impl Resolver for NoIo {
-    fn read(&mut self, uri: &str, _: ReadContext<'_>) -> Result<String> {
+    fn read(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
         Err(ParserError::new(
             "RESOLVER_DENIED",
             "Supply virtual files or an explicit host resolver",
-            Address {
-                uri: uri.into(),
-                pointer: String::new(),
-            },
+            Address::root(uri),
         ))
     }
 }
@@ -87,9 +72,7 @@ pub(crate) struct Session<'a> {
     files: BTreeMap<String, String>,
     retrieval_aliases: BTreeMap<String, String>,
     total_bytes: usize,
-    total_nodes: usize,
     total_value_bytes: usize,
-    retrievals: usize,
     /// Foreign documents are inert except for explicitly declared schema roots
     /// and schema reference targets discovered from those roots.
     pub schema_sources: BTreeSet<String>,
@@ -107,11 +90,7 @@ impl<'a> Session<'a> {
         resolver: &'a mut dyn Resolver,
         capture_locations: bool,
     ) -> Result<Self> {
-        options.limits.check()?;
-        let at = Address {
-            uri: root_uri.clone(),
-            pointer: String::new(),
-        };
+        let at = Address::root(&root_uri);
         let root = pointer::checked_url(&root_uri, &root_uri, &at)?;
         if root.fragment().is_some() {
             return Err(ParserError::new(
@@ -120,11 +99,7 @@ impl<'a> Session<'a> {
                 at,
             ));
         }
-        let retrieval_aliases = retrieval::normalize(
-            &options.retrieval_aliases,
-            root.as_str(),
-            options.limits.max_documents,
-        )?;
+        let retrieval_aliases = retrieval::normalize(&options.retrieval_aliases, root.as_str())?;
         let mut files = BTreeMap::new();
         for (uri, content) in &options.files {
             let url = pointer::checked_url(uri, &root_uri, &at)?;
@@ -168,9 +143,7 @@ impl<'a> Session<'a> {
             files,
             retrieval_aliases,
             total_bytes: 0,
-            total_nodes: 0,
             total_value_bytes: 0,
-            retrievals: 0,
             schema_sources: BTreeSet::new(),
             schema_mode: false,
             schema_defaults: BTreeMap::new(),
@@ -187,10 +160,7 @@ impl<'a> Session<'a> {
     ) -> Result<()> {
         let mut uri = self.root_uri.clone();
         let text = match content {
-            Some(text) => {
-                self.retrievals = 1;
-                text
-            }
+            Some(text) => text,
             None => {
                 let source = self.read(&uri)?;
                 uri = source.retrieval_uri;
@@ -210,7 +180,7 @@ impl<'a> Session<'a> {
 
     fn parse_source(&self, uri: &str, text: String, generated: bool) -> Result<SourceDocument> {
         if !generated && uri == self.root_uri {
-            return source::read_with_format(
+            return source::read(
                 uri,
                 text,
                 &self.options.limits,
@@ -226,11 +196,22 @@ impl<'a> Session<'a> {
         {
             return Ok(source::parse_raml(uri, text, &self.options.limits)?.source);
         }
-        match (generated, self.capture_locations) {
-            (true, true) => source::parse_generated(uri, text, &self.options.limits),
-            (true, false) => source::parse_generated_document(uri, text, &self.options.limits),
-            (false, true) => source::parse(uri, text, &self.options.limits),
-            (false, false) => source::parse_document(uri, text, &self.options.limits),
+        if generated {
+            source::generated::read(
+                uri,
+                text,
+                &self.options.limits,
+                true,
+                self.capture_locations,
+            )
+        } else {
+            source::read(
+                uri,
+                text,
+                &self.options.limits,
+                self.capture_locations,
+                crate::SourceFormat::Auto,
+            )
         }
     }
 
@@ -252,7 +233,7 @@ impl<'a> Session<'a> {
                 } else {
                     crate::SourceFormat::Auto
                 };
-                let full = source::read_with_format(
+                let full = source::read(
                     &uri,
                     source.text.clone(),
                     &self.options.limits,
@@ -280,18 +261,7 @@ impl<'a> Session<'a> {
     fn read(&mut self, requested_uri: &str) -> Result<ResolvedSource> {
         let uri = retrieval::canonical(&self.retrieval_aliases, requested_uri).to_owned();
         let uri = uri.as_str();
-        let at = Address {
-            uri: uri.into(),
-            pointer: String::new(),
-        };
-        if self.retrievals >= self.options.limits.max_documents {
-            return Err(ParserError::new(
-                "LIMIT_DOCUMENTS",
-                "Document retrieval budget exhausted",
-                at,
-            ));
-        }
-        self.retrievals += 1;
+        let at = Address::root(uri);
         let remaining = self
             .options
             .limits
@@ -310,7 +280,7 @@ impl<'a> Session<'a> {
                 retrieval_uri: uri.into(),
             }
         } else {
-            self.resolver.read_with_identity(
+            self.resolver.read(
                 uri,
                 ReadContext {
                     policy: &self.options.resolve,
@@ -349,17 +319,7 @@ impl<'a> Session<'a> {
     }
 
     fn register_retrieval_alias(&mut self, requested: &str, final_uri: &str) -> Result<()> {
-        let at = Address {
-            uri: requested.into(),
-            pointer: String::new(),
-        };
-        if self.retrieval_aliases.len() >= self.options.limits.max_documents {
-            return Err(ParserError::new(
-                "LIMIT_DOCUMENTS",
-                "Retrieval alias budget exhausted",
-                at,
-            ));
-        }
+        let at = Address::root(requested);
         let mut aliases = self.retrieval_aliases.clone();
         aliases.insert(requested.into(), final_uri.into());
         let aliases = retrieval::flatten(&aliases, &at)?;
@@ -385,25 +345,12 @@ impl<'a> Session<'a> {
         if self.sources.contains_key(&source.uri) {
             return Ok(());
         }
-        if self.sources.len() >= self.options.limits.max_documents {
-            return Err(ParserError::new(
-                "LIMIT_DOCUMENTS",
-                "Document count limit exceeded",
-                Address {
-                    uri: source.uri.clone(),
-                    pointer: String::new(),
-                },
-            ));
-        }
-        self.total_bytes = self.total_bytes.saturating_add(source.bytes);
+        self.total_bytes += source.bytes;
         if self.total_bytes > self.options.limits.max_total_bytes {
             return Err(ParserError::new(
                 "LIMIT_TOTAL_BYTES",
                 "Total source byte limit exceeded",
-                Address {
-                    uri: source.uri.clone(),
-                    pointer: String::new(),
-                },
+                Address::root(&source.uri),
             ));
         }
         let expanded_bytes = crate::output::measure_json(
@@ -417,31 +364,12 @@ impl<'a> Session<'a> {
             ParserError::new(
                 "LIMIT_TOTAL_BYTES",
                 "Expanded source values exceed total byte budget",
-                Address {
-                    uri: source.uri.clone(),
-                    pointer: String::new(),
-                },
+                Address::root(&source.uri),
             )
         })?;
         self.total_value_bytes += expanded_bytes;
-        self.total_nodes = self
-            .total_nodes
-            .saturating_add(crate::source::value_size(&source.document).0);
-        if self.total_nodes > self.options.limits.max_nodes {
-            return Err(ParserError::new(
-                "LIMIT_NODES",
-                "Total source node budget exhausted",
-                Address {
-                    uri: source.uri.clone(),
-                    pointer: String::new(),
-                },
-            ));
-        }
         let uri = source.uri.clone();
-        let root = Address {
-            uri: uri.clone(),
-            pointer: String::new(),
-        };
+        let root = Address::root(&uri);
         self.insert_resource(uri.clone(), root.clone())?;
         self.index_nodes(
             &uri,
@@ -584,10 +512,7 @@ impl<'a> Session<'a> {
         source: Option<SourceDocument>,
     ) -> Result<()> {
         let mut nodes = Vec::new();
-        let root = Address {
-            uri: uri.into(),
-            pointer: String::new(),
-        };
+        let root = Address::root(uri);
         let document = if uri == self.root_uri {
             self.working_root
                 .as_ref()
@@ -987,13 +912,7 @@ impl<'a> Session<'a> {
                         .get(address)
                         .map(|context| context.schema_dialect)
                         .unwrap_or_default();
-                    self.set_schema_default(
-                        &Address {
-                            uri: uri.clone(),
-                            pointer: String::new(),
-                        },
-                        dialect,
-                    )?;
+                    self.set_schema_default(&Address::root(&uri), dialect)?;
                 }
                 let read = self
                     .read(&uri)
@@ -1049,17 +968,15 @@ impl<'a> Session<'a> {
                         self.add(source, context)
                     });
                 if let Err(error) = read {
-                    if error.diagnostics.iter().any(|d| {
-                        matches!(
-                            d.code.as_str(),
-                            "LIMIT_DOCUMENTS" | "LIMIT_TOTAL_BYTES" | "LIMIT_NODES"
-                        )
-                    }) {
+                    if error
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "LIMIT_TOTAL_BYTES")
+                    {
                         return Err(error);
                     }
                     failed.insert(uri);
                     self.push_error(error);
-                    self.check_diagnostics()?;
                 }
             }
             for (address, base, kind, reference) in candidates {
@@ -1155,7 +1072,6 @@ impl<'a> Session<'a> {
                     }
                     Err(error) => self.push_error(error),
                 }
-                self.check_diagnostics()?;
             }
         }
         self.reference_sibling_diagnostics();
@@ -1176,9 +1092,6 @@ impl<'a> Session<'a> {
         for address in &self.reference_nodes {
             if !self.schema_address_active(address) {
                 continue;
-            }
-            if warnings.len() > self.options.limits.max_diagnostics {
-                break;
             }
             let Some(context) = self.contexts.get(address) else {
                 continue;
@@ -1262,9 +1175,12 @@ impl<'a> Session<'a> {
         if address.uri == self.root_uri
             && let Some(root) = &self.working_root
         {
-            return pointer::get(root, &address.pointer);
+            return root.pointer(&address.pointer);
         }
-        pointer::get(&self.sources.get(&address.uri)?.document, &address.pointer)
+        self.sources
+            .get(&address.uri)?
+            .document
+            .pointer(&address.pointer)
     }
 
     pub fn locate(&self, address: &Address) -> Location {
@@ -1283,11 +1199,7 @@ impl<'a> Session<'a> {
         {
             diagnostic.location = self.locate(&diagnostic.location.address);
         }
-        crate::diagnostics::append(
-            &mut self.diagnostics,
-            self.options.limits.max_diagnostics,
-            diagnostic,
-        );
+        self.diagnostics.push(diagnostic);
     }
 
     pub fn push_error(&mut self, error: ParserError) {
@@ -1296,23 +1208,13 @@ impl<'a> Session<'a> {
         }
     }
 
-    pub fn check_diagnostics(&self) -> Result<()> {
-        if self.diagnostics.len() >= self.options.limits.max_diagnostics {
-            return Err(crate::diagnostics::exhausted(Address {
-                uri: self.root_uri.clone(),
-                pointer: String::new(),
-            }));
-        }
-        Ok(())
-    }
-
     /// Effective API fields with physical source addresses. Path Item siblings
     /// override referenced fields; other Reference Objects override annotations.
     pub fn api_fields(&self, start: &Address, path_item: bool) -> BTreeMap<String, Address> {
         let mut chain = Vec::new();
         let mut seen = BTreeSet::new();
         let mut address = start.clone();
-        while seen.len() <= self.options.limits.max_depth && seen.insert(address.clone()) {
+        while seen.insert(address.clone()) {
             chain.push(address.clone());
             let Some(target) = self
                 .edge(&address, "$ref")
@@ -1347,24 +1249,17 @@ impl<'a> Session<'a> {
     }
 
     pub fn resolved_api_value(&self, address: &Address) -> Value {
-        let target = self.follow(address.clone());
-        if self
-            .value(&target)
-            .is_some_and(|value| value.get("$ref").is_some())
-        {
-            return self.value(&target).cloned().unwrap_or(Value::Null);
+        match self.value(&self.follow(address.clone())) {
+            Some(value) if value.is_object() && value.get("$ref").is_none() => Value::Object(
+                self.api_fields(address, false)
+                    .into_iter()
+                    .filter_map(|(key, address)| {
+                        self.value(&address).cloned().map(|value| (key, value))
+                    })
+                    .collect(),
+            ),
+            value => value.cloned().unwrap_or(Value::Null),
         }
-        if !self.value(&target).is_some_and(Value::is_object) {
-            return self.value(&target).cloned().unwrap_or(Value::Null);
-        }
-        Value::Object(
-            self.api_fields(address, false)
-                .into_iter()
-                .filter_map(|(key, address)| {
-                    self.value(&address).cloned().map(|value| (key, value))
-                })
-                .collect(),
-        )
     }
 
     /// Follow only reference objects, retaining the true source of the final node.

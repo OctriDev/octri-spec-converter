@@ -48,12 +48,9 @@ export interface Input {
 export interface Limits {
   maxDocumentBytes?: number;
   maxTotalBytes?: number;
-  maxDocuments?: number;
   maxNodes?: number;
   maxDepth?: number;
-  maxAliases?: number;
   maxOutputBytes?: number;
-  maxDecisions?: number;
 }
 export interface HttpMapping {
   method: string;

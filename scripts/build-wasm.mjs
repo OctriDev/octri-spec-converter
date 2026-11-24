@@ -1,8 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, appendFileSync } from "node:fs";
-import { rustEnvironment } from "./toolchain.mjs";
 
-const env = rustEnvironment();
+const env = { ...process.env };
 env.RUSTFLAGS = [env.RUSTFLAGS, "-C link-arg=--max-memory=536870912"]
   .filter(Boolean)
   .join(" ");

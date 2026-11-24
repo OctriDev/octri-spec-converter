@@ -35,7 +35,7 @@ pub(crate) fn run(cli: Cli) -> Result<i32> {
         } => {
             let protected = BTreeSet::from([before.canonicalize()?, after.canonicalize()?]);
             let result = call(
-                json!({"action":"compare","before":files::json(&before)?,"after":files::json(&after)?}),
+                json!({"action":"compare","before":files::json::<Value>(&before)?,"after":files::json::<Value>(&after)?}),
                 cli.timeout_ms,
             )?;
             deliver(&output, &result, &protected)?;
@@ -48,7 +48,7 @@ pub(crate) fn run(cli: Cli) -> Result<i32> {
         } => {
             let protected = BTreeSet::from([report.canonicalize()?]);
             let result = call(
-                json!({"action":"export","report":files::json(&report)?,"format":format.as_str()}),
+                json!({"action":"export","report":files::json::<Value>(&report)?,"format":format.as_str()}),
                 cli.timeout_ms,
             )?;
             if matches!(format, ExportFormat::Artifact) {
@@ -120,7 +120,7 @@ fn convert(args: Convert, bundle: bool, timeout_ms: u64) -> Result<i32> {
 }
 
 fn review(args: Review, timeout_ms: u64) -> Result<i32> {
-    let saved: ConversionReport = serde_json::from_value(files::json(&args.report)?)?;
+    let saved: ConversionReport = files::json(&args.report)?;
     // Check the entire saved artifact before trusting its original inputs or IDs.
     call(
         json!({"action":"export","report":saved,"format":"manifest"}),
@@ -129,7 +129,7 @@ fn review(args: Review, timeout_ms: u64) -> Result<i32> {
     let mut request: ConversionRequest = saved.original;
     let mut protected = BTreeSet::from([args.report.canonicalize()?]);
     if let Some(path) = args.config {
-        request.config = files::config(&path)?;
+        request.config = files::json(&path)?;
         protected.insert(path.canonicalize()?);
     }
     if !args.accept.is_empty() {

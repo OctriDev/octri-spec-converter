@@ -61,7 +61,7 @@ export function ramlXmlCases() {
     }
     cases.push(bom);
   }
-  for (const limit of ["documents", "bytes", "nodes"]) {
+  for (const limit of ["bytes", "nodes"]) {
     const description = "x".repeat(1000);
     const schema =
       limit === "nodes"
@@ -86,14 +86,9 @@ export function ramlXmlCases() {
         config: {
           targetVersion: "3.2.1",
           limits:
-            limit === "documents"
-              ? { maxDocuments: 1 }
-              : limit === "bytes"
-                ? {
-                    maxTotalBytes:
-                      new TextEncoder().encode(content).length + 32,
-                  }
-                : { maxNodes: 105 },
+            limit === "bytes"
+              ? { maxTotalBytes: new TextEncoder().encode(content).length + 32 }
+              : { maxNodes: 105 },
         },
       },
     });
