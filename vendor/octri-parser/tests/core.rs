@@ -253,19 +253,6 @@ fn rejects_duplicate_keys_tags_and_alias_expansion_limits() {
             "{code}"
         );
     }
-    let mut input = request(Operation::Analyze, json!({}));
-    input.input.uri = "memory://octri/openapi.yaml".into();
-    input.input.content = Some(
-        "openapi: 3.1.2\ninfo: &info {title: Pets, version: '1'}\npaths: {}\nx-alias: *info\n"
-            .into(),
-    );
-    input.options.limits.max_aliases = 0;
-    assert!(
-        run(input)
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "LIMIT_ALIASES")
-    );
 }
 
 #[test]
@@ -393,48 +380,6 @@ fn yaml_roundtrip_and_output_limits_are_explicit() {
 }
 
 #[test]
-fn retrieval_budget_stops_missing_file_fanout_before_io() {
-    #[derive(Debug, Default)]
-    struct Counter {
-        calls: usize,
-    }
-    impl octri_parser::Resolver for Counter {
-        fn read(
-            &mut self,
-            uri: &str,
-            _: octri_parser::ReadContext<'_>,
-        ) -> octri_parser::Result<String> {
-            self.calls += 1;
-            Err(octri_parser::ParserError::new(
-                "NOT_FOUND",
-                "No file",
-                octri_parser::Address {
-                    uri: uri.into(),
-                    pointer: String::new(),
-                },
-            ))
-        }
-    }
-    let mut input = request(
-        Operation::Analyze,
-        api(
-            "3.1.2",
-            json!({"A":{"$ref":"a.json"},"B":{"$ref":"b.json"},"C":{"$ref":"c.json"}}),
-        ),
-    );
-    input.options.limits.max_documents = 2;
-    let mut resolver = Counter::default();
-    let report = execute(input, &mut resolver).unwrap();
-    assert_eq!(resolver.calls, 1);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "LIMIT_DOCUMENTS")
-    );
-}
-
-#[test]
 fn callback_expressions_are_not_path_template_parameters() {
     let document = json!({"openapi":"3.1.2","info":{"title":"Pets","version":"1"},"paths":{"/register":{"post":{"responses":{"200":{"description":"OK"}},"callbacks":{"done":{"{$request.body#/callbackUrl}":{"post":{"responses":{"200":{"description":"OK"}}}}}}}}}});
     let report = run(request(Operation::Analyze, document));
@@ -545,21 +490,6 @@ fn yaml_alias_bytes_are_bounded_before_expansion() {
             .iter()
             .any(|d| d.code == "LIMIT_TOTAL_BYTES")
     );
-}
-
-#[test]
-fn diagnostic_exhaustion_never_reports_incomplete_validation_as_valid() {
-    let document = api(
-        "3.1.2",
-        json!({"A":{"$ref":"a.json"},"B":{"$ref":"b.json"}}),
-    );
-    let mut input = request(Operation::Analyze, document);
-    input.options.resolve.external = false;
-    input.options.limits.max_diagnostics = 1;
-    let report = run(input);
-    assert!(!report.valid);
-    assert_eq!(report.diagnostics.len(), 1);
-    assert_eq!(report.diagnostics[0].code, "LIMIT_DIAGNOSTICS");
 }
 
 #[test]
@@ -705,13 +635,8 @@ fn generated_json_preserves_values_pointers_and_budgets() {
         let error = execute(input.clone(), &mut NoIo).unwrap_err();
         assert_eq!(error.diagnostics[0].code, code);
     }
-    for (nodes, depth, bytes, code) in [
-        (1, 100, 10000, "LIMIT_NODES"),
-        (10000, 1, 10000, "LIMIT_DEPTH"),
-        (10000, 100, 1, "LIMIT_DOCUMENT_BYTES"),
-    ] {
+    for (depth, bytes, code) in [(1, 10000, "LIMIT_DEPTH"), (100, 1, "LIMIT_DOCUMENT_BYTES")] {
         input.input.content = Some(document.to_string());
-        input.options.limits.max_nodes = nodes;
         input.options.limits.max_depth = depth;
         input.options.limits.max_document_bytes = bytes;
         assert_eq!(
@@ -843,11 +768,10 @@ fn document_execution_keeps_limits_and_external_error_positions() {
         Operation::Validate,
         api("3.1.2", json!({"A":{"type":"string"}})),
     );
-    for limit in ["document", "nodes", "depth", "output"] {
+    for limit in ["document", "depth", "output"] {
         let mut bounded = input.clone();
         match limit {
             "document" => bounded.options.limits.max_document_bytes = 1,
-            "nodes" => bounded.options.limits.max_nodes = 1,
             "depth" => bounded.options.limits.max_depth = 1,
             _ => bounded.options.limits.max_output_bytes = 1,
         }
@@ -899,4 +823,22 @@ fn references_to_overlapping_parent_and_child_targets_share_graph_nodes() {
     assert_eq!(field(schemas, "AChild"), child);
     let scalar = field(field(field(child, "properties"), "id"), "type");
     assert_eq!(field(schemas, "CScalar"), scalar);
+}
+
+#[test]
+fn reference_expansion_of_keyless_arrays_is_bounded_by_nodes() {
+    // Each level is an array referencing the next level twice, so cloned
+    // expansion doubles per level while copying no strings or object keys.
+    // Output bytes alone would let this allocate gigabytes of graph nodes.
+    let mut schemas = serde_json::Map::new();
+    for level in 0..40 {
+        let next = json!({ "$ref": format!("#/components/schemas/L{}/prefixItems", level + 1) });
+        schemas.insert(format!("L{level}"), json!({ "prefixItems": [next, next] }));
+    }
+    schemas.insert("L40".into(), json!({ "prefixItems": [1] }));
+    let mut input = request(Operation::Dereference, api("3.1.2", Value::Object(schemas)));
+    input.options.dereference.clone_references = true;
+    input.options.limits.max_nodes = 10_000;
+    let error = execute(input, &mut NoIo).unwrap_err();
+    assert_eq!(error.diagnostics[0].code, "LIMIT_OUTPUT_NODES");
 }

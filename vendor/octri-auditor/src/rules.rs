@@ -13,8 +13,6 @@ pub fn hash(bytes: &[u8]) -> String {
 pub struct Findings<'a> {
     pub sources: Sources<'a>,
     pub values: Vec<Finding>,
-    pub limit: usize,
-    pub truncated: bool,
     examples: crate::examples::Examples,
     last_inserted: bool,
     keys: BTreeMap<String, usize>,
@@ -40,10 +38,6 @@ impl Findings<'_> {
             if existing.location != location && !existing.related.contains(&location) {
                 existing.related.push(location);
             }
-            return;
-        }
-        if self.values.len() >= self.limit {
-            self.truncated = true;
             return;
         }
         let Some(rule) = catalogue::find(rule_id) else {
@@ -159,20 +153,15 @@ impl Findings<'_> {
     }
 }
 
-pub fn run(report: &Report, limit: usize) -> Findings<'_> {
+pub fn run(report: &Report) -> Findings<'_> {
     let mut findings = Findings {
         sources: Sources(report),
         values: Vec::new(),
-        limit,
-        truncated: false,
         examples: crate::examples::Examples::new(report),
         last_inserted: false,
         keys: BTreeMap::new(),
     };
     for diagnostic in &report.diagnostics {
-        if findings.truncated {
-            break;
-        }
         if diagnostic.severity != octri_parser::Severity::Error {
             continue;
         }
@@ -199,10 +188,7 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
     let Some(inspection) = &report.inspection else {
         return findings;
     };
-    let root = Address {
-        uri: report.registry.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let root = Address::root(&report.registry.root_uri);
     let document = report.document.as_ref().unwrap_or(&Value::Null);
     let mut ids: BTreeMap<String, Location> = BTreeMap::new();
     let mut public_names: BTreeMap<String, Location> = BTreeMap::new();
@@ -217,9 +203,6 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
     let mut naming_conventions = naming::NamingConventions::new(&inspection.operations);
 
     for operation in &inspection.operations {
-        if findings.truncated {
-            break;
-        }
         let authored = findings
             .sources
             .value(&operation.location.address)
@@ -240,7 +223,11 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
                 .or_else(|| public_names.get(&public_name))
                 .cloned();
             if let Some(previous) = previous {
-                findings.operation("operation-id-unique", operation, format!("Authored identifier `{id}` collides after case/separator or namespace normalization (`{public_name}`). Review both operation locations."));
+                findings.operation(
+                    "operation-id-unique",
+                    operation,
+                    format!("Authored identifier `{id}` collides after case/separator or namespace normalization (`{public_name}`). Review both operation locations."),
+                );
                 if findings.last_inserted
                     && let Some(last) = findings.values.last_mut()
                 {
@@ -285,7 +272,11 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
             );
             let previous = mcp_names.insert(name.clone(), operation.location.clone());
             if previous.is_some() || id.len() > 128 || name != id || name.is_empty() {
-                findings.operation("mcp-tool-name", operation, format!("Tool identifier `{id}` is duplicate or outside MCP's recommended [A-Za-z0-9_.-]{{1,128}} form. Actual generator naming must be verified."));
+                findings.operation(
+                    "mcp-tool-name",
+                    operation,
+                    format!("Tool identifier `{id}` is duplicate or outside MCP's recommended [A-Za-z0-9_.-]{{1,128}} form. Actual generator naming must be verified."),
+                );
                 if findings.last_inserted
                     && let Some(previous) = previous
                     && let Some(last) = findings.values.last_mut()
@@ -321,9 +312,6 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
     for (index, previous, message) in
         naming::namespace_conflicts(&inspection.operations, &findings.sources)
     {
-        if findings.truncated {
-            break;
-        }
         let operation = &inspection.operations[index];
         findings.push(
             "operation-id-unique",
@@ -347,7 +335,11 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
     for (_, (operations, addresses)) in shapes {
         if operations.len() > 1 {
             for address in addresses {
-                findings.at("shared-schemas-referenced", &address, "This inline object shape appears in several operations. Confirm it represents one shared domain model before extracting it.");
+                findings.at(
+                    "shared-schemas-referenced",
+                    &address,
+                    "This inline object shape appears in several operations. Confirm it represents one shared domain model before extracting it.",
+                );
             }
         }
     }
@@ -362,14 +354,24 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
         .and_then(Value::as_array)
         .is_some_and(|servers| servers.iter().any(|server| text(server.get("url"))))
     {
-        findings.push("server-url", "servers".into(), findings.sources.location(&root), "No explicit server URL is declared. OpenAPI's implicit relative server depends on the consumer's origin.");
+        findings.push(
+            "server-url",
+            "servers".into(),
+            findings.sources.location(&root),
+            "No explicit server URL is declared. OpenAPI's implicit relative server depends on the consumer's origin.",
+        );
     }
     if inspection
         .security_schemes
         .as_object()
         .is_none_or(|schemes| schemes.is_empty())
     {
-        findings.push("security-declared", "components.securitySchemes".into(), findings.sources.location(&root), "No authentication scheme is declared in components.securitySchemes. An empty security requirement marks an operation public but does not define SDK authentication support. This check does not certify runtime security.");
+        findings.push(
+            "security-declared",
+            "components.securitySchemes".into(),
+            findings.sources.location(&root),
+            "No authentication scheme is declared in components.securitySchemes. An empty security requirement marks an operation public but does not define SDK authentication support. This check does not certify runtime security.",
+        );
     }
     if !package_version(
         document
@@ -377,7 +379,11 @@ pub fn run(report: &Report, limit: usize) -> Findings<'_> {
             .and_then(Value::as_str)
             .unwrap_or(""),
     ) {
-        findings.at("package-version-source", &findings.sources.field(&findings.sources.field(&root, "info"), "version"), "API metadata is not a semantic package version. Keep source metadata intact and configure package versions explicitly.");
+        findings.at(
+            "package-version-source",
+            &findings.sources.field(&findings.sources.field(&root, "info"), "version"),
+            "API metadata is not a semantic package version. Keep source metadata intact and configure package versions explicitly.",
+        );
     }
     for address in findings.sources.schemas() {
         audit_schema(&mut findings, &address, report.dialect);
@@ -413,7 +419,11 @@ fn audit_operation(
         operation.method.as_str(),
         "GET" | "PUT" | "POST" | "DELETE" | "OPTIONS" | "HEAD" | "PATCH" | "TRACE"
     ) {
-        findings.operation("sdk-target-compatibility", operation, "This HTTP method requires verification with the selected SDK generator. Parsing the operation does not prove generated transport support.");
+        findings.operation(
+            "sdk-target-compatibility",
+            operation,
+            "This HTTP method requires verification with the selected SDK generator. Parsing the operation does not prove generated transport support.",
+        );
     }
     let id = operation.operation_id.as_deref().unwrap_or("");
     if id.trim().is_empty() {
@@ -433,9 +443,17 @@ fn audit_operation(
             }],
             "review-required",
         );
-        findings.operation("mcp-tool-name",operation,"No explicit stable tool identifier is available. The MCP generator must synthesize one from the operation path; verify the generated name before publishing.");
+        findings.operation(
+            "mcp-tool-name",
+            operation,
+            "No explicit stable tool identifier is available. The MCP generator must synthesize one from the operation path; verify the generated name before publishing.",
+        );
     } else if let Some(proposed) = naming::suggested_rename(operation, naming_conventions) {
-        findings.operation("operation-id-naming", operation, format!("`{id}` repeats a namespace or action. Review `{proposed}`; renaming changes generated public APIs."));
+        findings.operation(
+            "operation-id-naming",
+            operation,
+            format!("`{id}` repeats a namespace or action. Review `{proposed}`; renaming changes generated public APIs."),
+        );
         let at = findings
             .sources
             .field(&operation.location.address, "operationId");
@@ -503,7 +521,11 @@ fn audit_operation(
             && operation.method != "HEAD"
             && !has_schema(response)
     }) {
-        findings.operation("response-schema", operation, "At least one body-bearing success response has no schema. 204, 205 and HEAD responses are exempt.");
+        findings.operation(
+            "response-schema",
+            operation,
+            "At least one body-bearing success response has no schema. 204, 205 and HEAD responses are exempt.",
+        );
         let missing: Vec<_> = successful
             .iter()
             .filter(|(status, response)| {
@@ -574,8 +596,16 @@ fn audit_operation(
         let name = parameter.get("name").and_then(Value::as_str).unwrap_or("");
         let place = parameter.get("in").and_then(Value::as_str).unwrap_or("");
         if place == "querystring" {
-            findings.operation("sdk-target-compatibility", operation, "A querystring parameter describes the entire query string. Verify that the selected generator preserves its media-type serialization.");
-            findings.operation("mcp-input-schema", operation, "A querystring parameter needs an explicit mapping between MCP arguments and the whole HTTP query string.");
+            findings.operation(
+                "sdk-target-compatibility",
+                operation,
+                "A querystring parameter describes the entire query string. Verify that the selected generator preserves its media-type serialization.",
+            );
+            findings.operation(
+                "mcp-input-schema",
+                operation,
+                "A querystring parameter needs an explicit mapping between MCP arguments and the whole HTTP query string.",
+            );
         }
         if !text(parameter.get("description")) {
             let location = findings.sources.parameter(&operation.location, name, place);
@@ -619,7 +649,12 @@ fn audit_operation(
             .iter()
             .any(|parameter| parameter["in"] == "path" && parameter["name"] == name)
         {
-            findings.push("path-parameters-declared",format!("{} {}#{name}",operation.method,operation.path),operation.location.clone(),format!("Path placeholder `{{{name}}}` has no effective path parameter declaration. Its actual type must be authored."));
+            findings.push(
+                "path-parameters-declared",
+                format!("{} {}#{name}",operation.method,operation.path),
+                operation.location.clone(),
+                format!("Path placeholder `{{{name}}}` has no effective path parameter declaration. Its actual type must be authored."),
+            );
         }
     }
     if let Some(body) = &operation.request_body {
@@ -632,7 +667,11 @@ fn audit_operation(
                     .any(|media| media.get("itemSchema").is_some())
             })
         {
-            findings.operation("sdk-target-compatibility", operation, "A sequential request body uses itemSchema. Verify streaming input support with the selected generator.");
+            findings.operation(
+                "sdk-target-compatibility",
+                operation,
+                "A sequential request body uses itemSchema. Verify streaming input support with the selected generator.",
+            );
             findings.operation(
                 "mcp-input-schema",
                 operation,
@@ -640,7 +679,11 @@ fn audit_operation(
             );
         }
         if !has_schema(body) {
-            findings.operation("request-schema",operation,"A request body is declared without a schema. Docs, typed clients and MCP arguments cannot describe its payload reliably.");
+            findings.operation(
+                "request-schema",
+                operation,
+                "A request body is declared without a schema. Docs, typed clients and MCP arguments cannot describe its payload reliably.",
+            );
         }
         let properties_documented =
             body.get("content")
@@ -693,7 +736,11 @@ fn audit_operation(
                 })
             })
         {
-            findings.operation("mcp-input-schema", operation, "Non-object or alternative request bodies require an explicit MCP argument mapping; static analysis cannot prove that mapping.");
+            findings.operation(
+                "mcp-input-schema",
+                operation,
+                "Non-object or alternative request bodies require an explicit MCP argument mapping; static analysis cannot prove that mapping.",
+            );
         }
     }
     let mut names = BTreeSet::new();
@@ -703,7 +750,11 @@ fn audit_operation(
         .filter_map(|parameter| parameter.get("name").and_then(Value::as_str))
         .any(|name| !names.insert(name))
     {
-        findings.operation("mcp-input-schema", operation, "Parameters in different locations share a name; a flat MCP argument object needs explicit disambiguation.");
+        findings.operation(
+            "mcp-input-schema",
+            operation,
+            "Parameters in different locations share a name; a flat MCP argument object needs explicit disambiguation.",
+        );
     }
     let examples = operation.responses.values().any(has_example)
         || operation.request_body.as_ref().is_some_and(has_example);
@@ -807,7 +858,11 @@ fn audit_paths(findings: &mut Findings<'_>, document: &Value, root: &Address) {
             let at = findings
                 .sources
                 .field(&findings.sources.field(root, "paths"), path);
-            findings.at("duplicate-paths", &at, format!("`{path}` and `{previous}` are equivalent path templates regardless of parameter names."));
+            findings.at(
+                "duplicate-paths",
+                &at,
+                format!("`{path}` and `{previous}` are equivalent path templates regardless of parameter names."),
+            );
             let related = findings.sources.location(
                 &findings
                     .sources
@@ -904,7 +959,11 @@ fn audit_schema(findings: &mut Findings<'_>, at: &Address, dialect: Option<Diale
     if let Some(values) = schema.get("enum").and_then(Value::as_array) {
         for (index, value) in values.iter().enumerate() {
             if !allows_type(&schema, value, dialect) {
-                findings.at("schema-enum-domain", &findings.sources.field(&findings.sources.field(at, "enum"), &index.to_string()), "Enum member cannot inhabit the declared wire type; values are never silently coerced.");
+                findings.at(
+                    "schema-enum-domain",
+                    &findings.sources.field(&findings.sources.field(at, "enum"), &index.to_string()),
+                    "Enum member cannot inhabit the declared wire type; values are never silently coerced.",
+                );
             }
         }
     }
@@ -953,7 +1012,11 @@ fn audit_schema(findings: &mut Findings<'_>, at: &Address, dialect: Option<Diale
     if matches!(dialect, Some(Dialect::OpenApi31 | Dialect::OpenApi32))
         && schema.get("nullable").is_some()
     {
-        findings.at("schema-dialect", &findings.sources.field(at, "nullable"), "OpenAPI 3.1 and 3.2 use JSON Schema null types. The OpenAPI 3.0 nullable keyword does not declare nullability here.");
+        findings.at(
+            "schema-dialect",
+            &findings.sources.field(at, "nullable"),
+            "OpenAPI 3.1 and 3.2 use JSON Schema null types. The OpenAPI 3.0 nullable keyword does not declare nullability here.",
+        );
     }
     if schema.get("oneOf").is_some()
         || schema.get("anyOf").is_some()
@@ -961,7 +1024,11 @@ fn audit_schema(findings: &mut Findings<'_>, at: &Address, dialect: Option<Diale
         || schema.get("discriminator").is_some()
         || schema.get("$dynamicRef").is_some()
     {
-        findings.at("schema-composition", at, "Composition, discriminator or dynamic-reference behavior requires target-specific generator verification. Static findings do not flatten alternatives or prove runtime behavior.");
+        findings.at(
+            "schema-composition",
+            at,
+            "Composition, discriminator or dynamic-reference behavior requires target-specific generator verification. Static findings do not flatten alternatives or prove runtime behavior.",
+        );
     }
     for profile_sensitive in [
         "unevaluatedProperties",
@@ -971,7 +1038,11 @@ fn audit_schema(findings: &mut Findings<'_>, at: &Address, dialect: Option<Diale
         "$dynamicRef",
     ] {
         if schema.get(profile_sensitive).is_some() {
-            findings.at("sdk-target-compatibility", &findings.sources.field(at, profile_sensitive), format!("`{profile_sensitive}` has no universal native SDK representation. Consult the selected versioned profile and execute the generator."));
+            findings.at(
+                "sdk-target-compatibility",
+                &findings.sources.field(at, profile_sensitive),
+                format!("`{profile_sensitive}` has no universal native SDK representation. Consult the selected versioned profile and execute the generator."),
+            );
         }
     }
     if let Some(example) = schema.get("example") {
@@ -1117,7 +1188,11 @@ fn audit_media_examples(findings: &mut Findings<'_>, dialect: Option<Dialect>) {
                         item_schema,
                     );
                 } else if authored.get("externalValue").is_some() {
-                    findings.at("schema-example-unverified", &findings.sources.field(&at, "externalValue"), "External example values are not retrieved. Supply an inline dataValue for offline validation.");
+                    findings.at(
+                        "schema-example-unverified",
+                        &findings.sources.field(&at, "externalValue"),
+                        "External example values are not retrieved. Supply an inline dataValue for offline validation.",
+                    );
                 } else if let Some(serialized) = authored.get("serializedValue") {
                     let at = findings.sources.field(&at, "serializedValue");
                     let media_type = media_at
@@ -1143,7 +1218,11 @@ fn audit_media_examples(findings: &mut Findings<'_>, dialect: Option<Dialect>) {
                             ),
                         }
                     } else {
-                        findings.at("schema-example-unverified", &at, "Wire serialization cannot be inferred safely here. Supply dataValue for offline schema validation; verify the serialized representation with the consumer.");
+                        findings.at(
+                            "schema-example-unverified",
+                            &at,
+                            "Wire serialization cannot be inferred safely here. Supply dataValue for offline schema validation; verify the serialized representation with the consumer.",
+                        );
                     }
                 }
             }
@@ -1173,7 +1252,11 @@ fn validate_media_example(
                 );
             }
         } else {
-            findings.at("schema-example-unverified", at, "A sequential media example needs a dataValue array of logical items for offline itemSchema validation.");
+            findings.at(
+                "schema-example-unverified",
+                at,
+                "A sequential media example needs a dataValue array of logical items for offline itemSchema validation.",
+            );
         }
     } else {
         validate_example(findings, schema, value, at, schema_at, dialect);

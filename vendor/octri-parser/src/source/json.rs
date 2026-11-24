@@ -9,7 +9,7 @@ pub(super) fn parse(
     limits: &Limits,
     locations: bool,
 ) -> Result<SourceDocument> {
-    let mut source = super::generated::parse_text(uri, text, limits, locations)?;
+    let mut source = super::generated::read(uri, text, limits, false, locations)?;
     if !locations {
         return Ok(source);
     }

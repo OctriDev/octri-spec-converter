@@ -5,8 +5,8 @@ export function createWorkerClient({
   timeoutMs = 30000,
   workerUrl = new URL("./worker.mjs", import.meta.url),
 } = {}) {
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000)
-    throw new RangeError("Worker timeout must be 1..30000 ms");
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1)
+    throw new RangeError("Worker timeout must be a positive integer of ms");
   let worker;
   let sequence = 0;
   let disposed = false;

@@ -9,8 +9,8 @@ use std::path::PathBuf;
     about = "Offline specification conversion with explicit fidelity review"
 )]
 pub(crate) struct Cli {
-    /// Kill the conversion worker after this many milliseconds (maximum 30000).
-    #[arg(long, global = true, default_value_t = 30_000, value_parser = clap::value_parser!(u64).range(1..=30_000))]
+    /// Kill the conversion worker after this many milliseconds.
+    #[arg(long, global = true, default_value_t = 30_000, value_parser = clap::value_parser!(u64).range(1..))]
     pub timeout_ms: u64,
     #[command(subcommand)]
     pub command: Command,

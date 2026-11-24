@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.octri</groupId>
   <artifactId>spec-converter-kotlin</artifactId>
-  <version>0.1.3</version>
+  <version>0.2.0</version>
   <name>Octri Spec Converter for Kotlin</name>
   <description>Kotlin facade for the Octri Rust Spec Converter; the native library ships in dev.octri:spec-converter.</description>
   <url>https://github.com/octridev/octri-spec-converter</url>
@@ -32,7 +32,7 @@
     <dependency>
       <groupId>dev.octri</groupId>
       <artifactId>spec-converter</artifactId>
-      <version>0.1.3</version>
+      <version>0.2.0</version>
     </dependency>
     <dependency>
       <groupId>org.jetbrains.kotlin</groupId>

@@ -59,7 +59,7 @@ struct BoundedBytes {
 }
 impl std::io::Write for BoundedBytes {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.bytes.len().saturating_add(bytes.len()) > self.limit {
+        if self.bytes.len() + bytes.len() > self.limit {
             return Err(std::io::Error::other("Output byte limit exceeded"));
         }
         self.bytes.extend_from_slice(bytes);
@@ -75,7 +75,7 @@ struct BoundedText {
 }
 impl std::fmt::Write for BoundedText {
     fn write_str(&mut self, text: &str) -> std::fmt::Result {
-        if self.text.len().saturating_add(text.len()) > self.limit {
+        if self.text.len() + text.len() > self.limit {
             return Err(std::fmt::Error);
         }
         self.text.push_str(text);
@@ -91,7 +91,7 @@ pub(crate) fn measure_json(value: &impl serde::Serialize, limit: usize) -> Resul
     }
     impl std::io::Write for Counter {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.used = self.used.saturating_add(bytes.len());
+            self.used += bytes.len();
             if self.used > self.limit {
                 return Err(std::io::Error::other("Encoded byte budget exceeded"));
             }
@@ -106,24 +106,23 @@ pub(crate) fn measure_json(value: &impl serde::Serialize, limit: usize) -> Resul
     Ok(counter.used)
 }
 
+/// Writers recurse, so depth is checked before serializing.
 fn check_tree(value: &Value, limits: &Limits) -> Result<()> {
-    limits.check()?;
-    let mut queue = vec![(value, 0usize)];
-    let mut nodes = 0;
-    while let Some((value, depth)) = queue.pop() {
-        nodes += 1;
-        if nodes > limits.max_nodes || depth > limits.max_depth {
-            return Err(ParserError::new(
-                "LIMIT_OUTPUT_NODES",
-                "Output tree exceeds node/depth limits",
-                Address::default(),
-            ));
-        }
-        match value {
-            Value::Object(map) => queue.extend(map.values().map(|value| (value, depth + 1))),
-            Value::Array(values) => queue.extend(values.iter().map(|value| (value, depth + 1))),
-            _ => {}
-        }
+    if crate::source::value_depth(value) > limits.max_depth {
+        return Err(ParserError::new(
+            "LIMIT_DEPTH",
+            "Output tree exceeds nesting limit",
+            Address::default(),
+        ));
     }
     Ok(())
+}
+
+/// String and key bytes a copied node adds to output.
+pub(crate) fn copy_bytes(value: &Value) -> usize {
+    match value {
+        Value::String(value) => value.len(),
+        Value::Object(map) => map.keys().map(String::len).sum(),
+        _ => 0,
+    }
 }

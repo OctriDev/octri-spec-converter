@@ -388,19 +388,6 @@ fn reports_escape_hostile_html_and_actions_reject_bad_transport() {
 }
 
 #[test]
-fn finding_limit_blocks_green_outcomes() {
-    let mut req = request(good());
-    req.input.content = Some(
-        json!({"openapi":"3.1.2","info":{"title":"Bad"},"paths":{"/x":{"get":{"responses":{}}}}})
-            .to_string(),
-    );
-    req.config.max_findings = 1;
-    let report = audit(&req).unwrap();
-    assert!(!report.complete && !report.policy_passed);
-    assert_eq!(report.score, 0.0);
-}
-
-#[test]
 fn examples_resolve_local_external_and_recursive_schemas_offline() {
     for reference in ["#/components/schemas/Pet", "pet.json"] {
         let mut value = good();

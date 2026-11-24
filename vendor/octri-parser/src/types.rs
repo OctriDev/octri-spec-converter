@@ -28,6 +28,15 @@ pub struct Address {
     pub pointer: String,
 }
 
+impl Address {
+    pub fn root(uri: impl Into<String>) -> Self {
+        Self {
+            uri: uri.into(),
+            pointer: String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Location {
     #[serde(flatten)]
@@ -69,12 +78,19 @@ pub struct Diagnostic {
     pub related: Vec<Location>,
 }
 
-#[derive(Debug, Clone, thiserror::Error, Serialize, Deserialize)]
-#[error("{message}")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParserError {
     pub message: String,
     pub diagnostics: Vec<Diagnostic>,
 }
+
+impl std::fmt::Display for ParserError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ParserError {}
 
 impl ParserError {
     pub fn new(code: &str, message: impl Into<String>, address: Address) -> Self {
@@ -94,17 +110,18 @@ impl ParserError {
 
 pub type Result<T> = std::result::Result<T, ParserError>;
 
+/// Byte caps bound memory for untrusted input. Depth bounds recursion so deep
+/// input fails with a diagnostic instead of overflowing the stack. Reference
+/// expansion can grow exponentially, so its output is bounded by node count and
+/// encoded bytes: each graph node costs far more memory than its output bytes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct Limits {
     pub max_document_bytes: usize,
     pub max_total_bytes: usize,
-    pub max_documents: usize,
-    pub max_nodes: usize,
     pub max_depth: usize,
-    pub max_aliases: usize,
+    pub max_nodes: usize,
     pub max_output_bytes: usize,
-    pub max_diagnostics: usize,
 }
 
 impl Default for Limits {
@@ -112,34 +129,10 @@ impl Default for Limits {
         Self {
             max_document_bytes: 16 * 1024 * 1024,
             max_total_bytes: 64 * 1024 * 1024,
-            max_documents: 128,
-            max_nodes: 1_000_000,
             max_depth: 128,
-            max_aliases: 64,
+            max_nodes: 1_000_000,
             max_output_bytes: 64 * 1024 * 1024,
-            max_diagnostics: 1000,
         }
-    }
-}
-
-impl Limits {
-    pub(crate) fn check(&self) -> Result<()> {
-        let valid = self.max_depth > 0
-            && self.max_depth <= 128
-            && self.max_nodes > 0
-            && self.max_documents > 0
-            && self.max_document_bytes > 0
-            && self.max_total_bytes > 0
-            && self.max_output_bytes > 0
-            && self.max_diagnostics > 0;
-        if !valid {
-            return Err(ParserError::new(
-                "INVALID_OPTIONS",
-                "Limits must be positive; maxDepth cannot exceed 128",
-                Address::default(),
-            ));
-        }
-        Ok(())
     }
 }
 

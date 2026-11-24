@@ -1,6 +1,6 @@
 {
   "name": "@octri/spec-converter-web",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Complete offline browser UI for Octri Spec Converter, including WebAssembly and integrity manifests.",
   "private": false,
   "license": "Apache-2.0",

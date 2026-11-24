@@ -5,7 +5,7 @@ WSDL and cURL descriptions to OpenAPI, offline, with Octri's Rust converter.
 
 ```sh
 # Package.swift
-.package(url: "https://github.com/octridev/octri-spec-converter-swift", from: "0.1.3")
+.package(url: "https://github.com/octridev/octri-spec-converter-swift", from: "0.2.0")
 ```
 
 ```swift

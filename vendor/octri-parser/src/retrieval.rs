@@ -6,19 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) fn normalize(
     supplied: &BTreeMap<String, String>,
     base: &str,
-    limit: usize,
 ) -> Result<BTreeMap<String, String>> {
-    let at = Address {
-        uri: base.into(),
-        pointer: String::new(),
-    };
-    if supplied.len() > limit {
-        return Err(ParserError::new(
-            "LIMIT_DOCUMENTS",
-            "Retrieval alias budget exhausted",
-            at,
-        ));
-    }
+    let at = Address::root(base);
     let mut aliases = BTreeMap::new();
     for (requested, final_uri) in supplied {
         let requested = checked_uri(requested, base, &at)?;

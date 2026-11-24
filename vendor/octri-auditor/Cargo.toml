@@ -11,7 +11,6 @@ license.workspace = true
 octri-parser.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
 sha2.workspace = true
 url.workspace = true
 jsonschema = { version = "0.58.6", default-features = false, features = ["arbitrary-precision"] }

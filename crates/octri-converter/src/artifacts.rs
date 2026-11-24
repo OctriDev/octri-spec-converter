@@ -90,46 +90,45 @@ pub fn compare(before: &ConversionReport, after: &ConversionReport) -> Result<Va
     verify(before)?;
     verify(after)?;
     let mut changes = Vec::new();
-    let mut truncated = false;
     diff(
         before.document.as_ref(),
         after.document.as_ref(),
         "",
         &mut changes,
-        &mut truncated,
     );
     Ok(
-        json!({"schemaVersion":crate::REPORT_VERSION,"beforeStatus":before.status,"afterStatus":after.status,"changes":changes,"truncated":truncated,"beforeOutputHash":before.output.as_ref().map(|output|&output.sha256),"afterOutputHash":after.output.as_ref().map(|output|&output.sha256)}),
+        json!({"schemaVersion":crate::REPORT_VERSION,"beforeStatus":before.status,"afterStatus":after.status,"changes":changes,"beforeOutputHash":before.output.as_ref().map(|output|&output.sha256),"afterOutputHash":after.output.as_ref().map(|output|&output.sha256)}),
     )
 }
 
-fn diff(
-    before: Option<&Value>,
-    after: Option<&Value>,
-    pointer: &str,
-    changes: &mut Vec<Value>,
-    truncated: &mut bool,
-) {
-    if match (before, after) {
-        (Some(before), Some(after)) => octri_parser::numbers::equivalent(before, after),
-        (None, None) => true,
-        _ => false,
-    } {
-        return;
-    }
-    if changes.len() >= 10_000 {
-        *truncated = true;
-        return;
-    }
-    match (before,after){
-        (Some(Value::Object(left)),Some(Value::Object(right)))=>{
-            let keys=left.keys().chain(right.keys()).collect::<std::collections::BTreeSet<_>>();
-            for key in keys{diff(left.get(key),right.get(key),&child(pointer,key),changes,truncated);if *truncated{return;}}
-        },
-        (Some(Value::Array(left)),Some(Value::Array(right)))=>{
-            for index in 0..left.len().max(right.len()){diff(left.get(index),right.get(index),&child(pointer,&index.to_string()),changes,truncated);if *truncated{return;}}
-        },
-        _=>changes.push(json!({"pointer":pointer,"before":before,"after":after,"kind":if before.is_none(){"added"}else if after.is_none(){"removed"}else{"changed"}})),
+fn diff(before: Option<&Value>, after: Option<&Value>, pointer: &str, changes: &mut Vec<Value>) {
+    match (before, after) {
+        (Some(before), Some(after)) if octri_parser::numbers::equivalent(before, after) => {}
+        (None, None) => {}
+        (Some(Value::Object(left)), Some(Value::Object(right))) => {
+            let keys: std::collections::BTreeSet<_> = left.keys().chain(right.keys()).collect();
+            for key in keys {
+                diff(left.get(key), right.get(key), &child(pointer, key), changes);
+            }
+        }
+        (Some(Value::Array(left)), Some(Value::Array(right))) => {
+            for index in 0..left.len().max(right.len()) {
+                diff(
+                    left.get(index),
+                    right.get(index),
+                    &child(pointer, &index.to_string()),
+                    changes,
+                );
+            }
+        }
+        _ => {
+            let kind = match (before, after) {
+                (None, _) => "added",
+                (_, None) => "removed",
+                _ => "changed",
+            };
+            changes.push(json!({"pointer":pointer,"before":before,"after":after,"kind":kind}));
+        }
     }
 }
 

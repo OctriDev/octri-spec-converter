@@ -172,7 +172,6 @@ fn distinct_xml_selectors_share_projection_budget_without_sharing_roots()
     let mut input = request("schema.xsd#Text", XML, true)?;
     input.files.remove("traits/schema.json");
     input.input.content.as_mut().ok_or("root")?.push_str("/counts:\n  post:\n    body:\n      application/xml:\n        type: !include traits/schema.xsd#Count\n    responses:\n      204: {description: Empty}\n");
-    input.config.limits.max_documents = 3;
     let report = convert(&input)?;
     assert!(report.valid, "{:?}", report.diagnostics);
     let document = report.document.ok_or("output")?;

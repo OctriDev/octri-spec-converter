@@ -298,9 +298,8 @@ try {
     'fn main()->Result<(),Box<dyn std::error::Error>>{let request:octri_converter::ConversionRequest=serde_json::from_str(&std::env::args().nth(1).ok_or("missing source")?)?;let r=octri_converter::convert(&request)?;assert!(r.valid);Ok(())}\n',
   );
   run(
-    process.execPath,
+    "cargo",
     [
-      resolve(root, "scripts/cargo.mjs"),
       "run",
       "--offline",
       "--manifest-path",

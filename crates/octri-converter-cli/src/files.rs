@@ -1,6 +1,6 @@
 //! Explicit, bounded file admission and atomic output publication.
 use crate::{Error, Result, args::Settings};
-use octri_converter::{Config, ConversionRequest, Limits};
+use octri_converter::{Config, ConversionRequest};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
@@ -28,13 +28,8 @@ pub(crate) fn read(path: &Path, limit: usize) -> Result<String> {
     Ok(content)
 }
 
-pub(crate) fn json(path: &Path) -> Result<Value> {
+pub(crate) fn json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
     octri_parser::wire::decode_json("", &read(path, MAX_REPORT_BYTES)?)
-        .map_err(|error| Error::Message(error.to_string()))
-}
-
-pub(crate) fn config(path: &Path) -> Result<Config> {
-    octri_parser::wire::decode_json("", &read(path, 1024 * 1024)?)
         .map_err(|error| Error::Message(error.to_string()))
 }
 
@@ -57,7 +52,7 @@ impl Inputs {
         let mut config = settings
             .config
             .as_deref()
-            .map(config)
+            .map(json::<Config>)
             .transpose()?
             .unwrap_or_default();
         if let Some(format) = &settings.input_format {
@@ -105,32 +100,28 @@ impl Inputs {
         Ok(inputs)
     }
 
-    fn admit(&mut self, uri: String, path: &Path) -> Result<()> {
+    /// Read one source within the configured document and combined byte limits.
+    fn load(&mut self, path: &Path) -> Result<String> {
         let limits = &self.config.limits;
-        let content = read(
-            path,
-            limits
-                .max_document_bytes
-                .min(Limits::default().max_document_bytes),
-        )?;
+        let content = read(path, limits.max_document_bytes)?;
+        let next = self.bytes.saturating_add(content.len());
+        if next > limits.max_total_bytes {
+            return Err(Error::Message(
+                "Sources exceed the combined byte limit".into(),
+            ));
+        }
+        self.bytes = next;
+        Ok(content)
+    }
+
+    fn admit(&mut self, uri: String, path: &Path) -> Result<()> {
         if let Some(previous) = self.dependencies.get(&uri) {
-            if previous != &content {
+            if previous != &read(path, self.config.limits.max_document_bytes)? {
                 return Err(Error::Message(format!("Conflicting source URI: {uri}")));
             }
             return Ok(());
         }
-        let next = self.bytes.saturating_add(content.len());
-        if next
-            > limits
-                .max_total_bytes
-                .min(Limits::default().max_total_bytes)
-            || self.dependencies.len() >= limits.max_documents.min(Limits::default().max_documents)
-        {
-            return Err(Error::Message(
-                "Supplied sources exceed document or combined byte limit".into(),
-            ));
-        }
-        self.bytes = next;
+        let content = self.load(path)?;
         self.protected.insert(path.to_owned());
         self.dependencies.insert(uri, content);
         Ok(())
@@ -140,39 +131,13 @@ impl Inputs {
         let path = self.fenced(path)?;
         let uri = self.uri(&path)?;
         let mut files = self.dependencies.clone();
-        let content = if let Some(content) =
-            files.remove(&uri).or_else(|| self.roots.get(&uri).cloned())
-        {
-            content
-        } else {
-            let content = read(
-                &path,
-                self.config
-                    .limits
-                    .max_document_bytes
-                    .min(Limits::default().max_document_bytes),
-            )?;
-            let next = self.bytes.saturating_add(content.len());
-            if next
-                > self
-                    .config
-                    .limits
-                    .max_total_bytes
-                    .min(Limits::default().max_total_bytes)
-                || self.dependencies.len() + self.roots.len()
-                    >= self
-                        .config
-                        .limits
-                        .max_documents
-                        .min(Limits::default().max_documents)
-            {
-                return Err(Error::Message(
-                    "Batch sources exceed document or combined byte limit; split the batch".into(),
-                ));
+        let content = match files.remove(&uri).or_else(|| self.roots.get(&uri).cloned()) {
+            Some(content) => content,
+            None => {
+                let content = self.load(&path)?;
+                self.roots.insert(uri.clone(), content.clone());
+                content
             }
-            self.bytes = next;
-            self.roots.insert(uri.clone(), content.clone());
-            content
         };
         self.protected.insert(path);
         Ok(ConversionRequest {
@@ -229,7 +194,6 @@ impl Inputs {
 
     pub fn expand(&self, patterns: &[String], roots_only: bool) -> Result<Vec<PathBuf>> {
         let mut files = BTreeSet::new();
-        let mut examined = 0usize;
         for pattern in patterns {
             let supplied = Path::new(pattern);
             if supplied
@@ -274,12 +238,6 @@ impl Inputs {
             let mut visited = BTreeSet::new();
             let mut matches = 0usize;
             while let Some(path) = pending.pop() {
-                examined += 1;
-                if examined > 10_000 {
-                    return Err(Error::Message(
-                        "Source traversal exceeds 10000 paths".into(),
-                    ));
-                }
                 let canonical = self.fenced(&path)?;
                 if canonical.is_dir() {
                     // Glob libraries commonly follow directory symlinks before
@@ -292,11 +250,6 @@ impl Inputs {
                     }
                     for entry in fs::read_dir(path)? {
                         pending.push(entry?.path());
-                        if pending.len() > 10_000 {
-                            return Err(Error::Message(
-                                "Source traversal exceeds 10000 paths".into(),
-                            ));
-                        }
                     }
                 } else if canonical.is_file() {
                     let selected = matcher.as_ref().is_none_or(|matcher| {
@@ -316,9 +269,6 @@ impl Inputs {
                     }
                     matches += 1;
                     files.insert(canonical);
-                    if files.len() > 100 {
-                        return Err(Error::Message("Select at most 100 source files".into()));
-                    }
                 } else {
                     return Err(Error::Message(
                         "Only regular source files and directories are accepted".into(),

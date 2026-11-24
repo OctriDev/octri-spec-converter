@@ -196,23 +196,9 @@ fn authored_resource_cannot_shadow_retrieval_alias() {
     });
 }
 
-#[test]
-fn retrieval_aliases_have_a_separate_document_budget() {
-    let mut input = request(json!({}));
-    input.options.limits.max_documents = 1;
-    input.options.retrieval_aliases.extend([
-        ("one.json".into(), "new.json".into()),
-        ("two.json".into(), "new.json".into()),
-    ]);
-    rejected_with(input, "LIMIT_DOCUMENTS");
-}
-
 struct RedirectResolver;
 impl Resolver for RedirectResolver {
-    fn read(&mut self, _: &str, _: ReadContext<'_>) -> Result<String> {
-        unreachable!()
-    }
-    fn read_with_identity(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
+    fn read(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
         let (retrieval_uri, document) = if uri == "https://api.example/openapi.json" {
             (
                 "https://cdn.example/v2/openapi.json",
@@ -248,11 +234,14 @@ fn resolver_final_uri_updates_root_and_subsequent_relative_reads() {
 }
 
 #[test]
-fn existing_text_only_custom_resolvers_remain_compatible() {
+fn unredirected_reads_register_no_retrieval_aliases() {
     struct TextResolver;
     impl Resolver for TextResolver {
-        fn read(&mut self, _: &str, _: ReadContext<'_>) -> Result<String> {
-            Ok(json!({"type":"string"}).to_string())
+        fn read(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
+            Ok(ResolvedSource {
+                content: json!({"type":"string"}).to_string(),
+                retrieval_uri: uri.into(),
+            })
         }
     }
     let report = octri_parser::execute(
@@ -270,10 +259,7 @@ fn multiple_native_aliases_reuse_identical_sources_and_reject_conflicting_bytes(
         conflicting: bool,
     }
     impl Resolver for SharedFinal {
-        fn read(&mut self, _: &str, _: ReadContext<'_>) -> Result<String> {
-            unreachable!()
-        }
-        fn read_with_identity(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
+        fn read(&mut self, uri: &str, _: ReadContext<'_>) -> Result<ResolvedSource> {
             Ok(ResolvedSource {
                 retrieval_uri: "https://cdn.example/pet.json".into(),
                 content: json!({"type": if self.conflicting && uri.ends_with("b.json") { "integer" } else { "string" }}).to_string(),

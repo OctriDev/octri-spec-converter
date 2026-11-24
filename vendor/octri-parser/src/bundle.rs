@@ -42,10 +42,7 @@ fn build(session: &Session<'_>, capture_locations: bool) -> Result<Bundle> {
         nodes: 0,
         copied_bytes: 0,
     };
-    let root = Address {
-        uri: session.root_uri.clone(),
-        pointer: String::new(),
-    };
+    let root = Address::root(&session.root_uri);
     let original = session.value(&root).ok_or_else(|| {
         ParserError::new("INVALID_DOCUMENT", "Root document is missing", root.clone())
     })?;
@@ -67,10 +64,7 @@ fn build(session: &Session<'_>, capture_locations: bool) -> Result<Bundle> {
         if uri == &session.root_uri {
             continue;
         }
-        let address = Address {
-            uri: uri.clone(),
-            pointer: String::new(),
-        };
+        let address = Address::root(uri.as_str());
         let whole_schema = session
             .contexts
             .get(&address)
@@ -204,12 +198,7 @@ fn build(session: &Session<'_>, capture_locations: bool) -> Result<Bundle> {
 fn outer_schema_roots(session: &Session<'_>, uri: &str) -> Vec<Address> {
     session
         .contexts
-        .range(
-            Address {
-                uri: uri.into(),
-                pointer: String::new(),
-            }..,
-        )
+        .range(Address::root(uri)..)
         .take_while(|(address, _)| address.uri == uri)
         .filter(|(address, node)| {
             node.context == Context::Schema && session.schema_address_active(address) && {
@@ -350,10 +339,7 @@ impl Builder<'_, '_> {
             parent = prefix;
         }
         self.session
-            .value(&Address {
-                uri: self.session.root_uri.clone(),
-                pointer: String::new(),
-            })
+            .value(&Address::root(&self.session.root_uri))
             .and_then(|root| root.get("jsonSchemaDialect"))
             .and_then(Value::as_str)
             .and_then(SchemaDialect::from_uri)
@@ -535,21 +521,21 @@ impl Builder<'_, '_> {
             .get(address)
             .map_or(self.session.dialect, |node| node.api_dialect);
         self.nodes += 1;
-        if self.nodes > self.session.options.limits.max_nodes
-            || depth > self.session.options.limits.max_depth
-        {
+        if self.nodes > self.session.options.limits.max_nodes {
             return Err(ParserError::new(
                 "LIMIT_OUTPUT_NODES",
-                "Bundled output exceeds limits",
+                "Bundled output exceeds node limit",
                 address.clone(),
             ));
         }
-        let bytes = match value {
-            Value::String(value) => value.len(),
-            Value::Object(map) => map.keys().map(String::len).sum(),
-            _ => 0,
-        };
-        self.copied_bytes = self.copied_bytes.saturating_add(bytes);
+        if depth > self.session.options.limits.max_depth {
+            return Err(ParserError::new(
+                "LIMIT_DEPTH",
+                "Bundled output exceeds nesting limit",
+                address.clone(),
+            ));
+        }
+        self.copied_bytes += crate::output::copy_bytes(value);
         if self.copied_bytes > self.session.options.limits.max_output_bytes {
             return Err(ParserError::new(
                 "LIMIT_OUTPUT_BYTES",
@@ -877,10 +863,7 @@ impl Builder<'_, '_> {
                         .is_some_and(|s| {
                             self.session
                                 .contexts
-                                .get(&Address {
-                                    uri: s.uri.clone(),
-                                    pointer: String::new(),
-                                })
+                                .get(&Address::root(&s.uri))
                                 .is_none_or(|c| c.context != Context::Schema)
                         })
                 {

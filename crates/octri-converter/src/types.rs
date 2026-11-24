@@ -61,12 +61,9 @@ pub enum Classification {
 pub struct Limits {
     pub max_document_bytes: usize,
     pub max_total_bytes: usize,
-    pub max_documents: usize,
     pub max_nodes: usize,
     pub max_depth: usize,
-    pub max_aliases: usize,
     pub max_output_bytes: usize,
-    pub max_decisions: usize,
 }
 
 impl Default for Limits {
@@ -74,12 +71,9 @@ impl Default for Limits {
         Self {
             max_document_bytes: 5 * 1024 * 1024,
             max_total_bytes: 20 * 1024 * 1024,
-            max_documents: 100,
             max_nodes: 1_000_000,
             max_depth: 128,
-            max_aliases: 64,
             max_output_bytes: 64 * 1024 * 1024,
-            max_decisions: 10_000,
         }
     }
 }
@@ -89,35 +83,10 @@ impl Limits {
         octri_parser::Limits {
             max_document_bytes: self.max_document_bytes,
             max_total_bytes: self.max_total_bytes,
-            max_documents: self.max_documents,
             max_nodes: self.max_nodes,
             max_depth: self.max_depth,
-            max_aliases: self.max_aliases,
             max_output_bytes: self.max_output_bytes,
-            max_diagnostics: self.max_decisions.min(10_000),
         }
-    }
-
-    pub(crate) fn validate(&self) -> Result<()> {
-        let ceiling = Self::default();
-        let fields = [
-            (self.max_document_bytes, ceiling.max_document_bytes),
-            (self.max_total_bytes, ceiling.max_total_bytes),
-            (self.max_documents, ceiling.max_documents),
-            (self.max_nodes, ceiling.max_nodes),
-            (self.max_depth, ceiling.max_depth),
-            (self.max_output_bytes, ceiling.max_output_bytes),
-            (self.max_decisions, ceiling.max_decisions),
-        ];
-        if fields.iter().any(|(value, max)| *value == 0 || value > max)
-            || self.max_aliases > ceiling.max_aliases
-        {
-            return Err(ConversionError::new(
-                "INVALID_LIMITS",
-                "Limits may lower, but never exceed, the published safety ceilings",
-            ));
-        }
-        Ok(())
     }
 }
 

@@ -47,16 +47,14 @@ pub fn fix(input: LegacyFixRequest) -> Result<LegacyFixResult> {
                 .into_iter()
                 .filter(|key| key != &input.key)
                 .collect(),
+            limits: crate::AuditLimits {
+                max_document_bytes: 24 * 1024 * 1024,
+                max_total_bytes: 24 * 1024 * 1024,
+                max_nodes: 1_000_000,
+                max_depth: 128,
+            },
             ..Config::default()
         },
-    };
-    let mut request = request;
-    request.config.limits = crate::AuditLimits {
-        max_document_bytes: 24 * 1024 * 1024,
-        max_total_bytes: 24 * 1024 * 1024,
-        max_nodes: 1_000_000,
-        max_depth: 128,
-        ..crate::AuditLimits::default()
     };
     let report = audit(&request)?;
     if let Some(finding) = report

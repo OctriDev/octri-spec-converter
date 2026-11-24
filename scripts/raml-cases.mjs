@@ -161,20 +161,18 @@ baseUri: https://api.example.test/{version}
     }),
   );
   const body = `    body:\n      application/json:\n        schema: ${budgetSchema}\n    responses:\n      204: {description: Empty}\n`;
-  for (const limits of [{ maxNodes: 600 }, { maxDocuments: 1 }]) {
-    cases.push({
-      kind: "schema-resource-limit",
-      expectedError: "SCHEMA_DERIVED_LIMIT",
-      request: {
-        input: {
-          uri: "memory://fixtures/legacy.raml",
-          content: `${prefix}/one:\n  post:\n${body}/two:\n  post:\n${body}`,
-          generated: false,
-        },
-        files: {},
-        config: { limits },
+  cases.push({
+    kind: "schema-resource-limit",
+    expectedError: "SCHEMA_DERIVED_LIMIT",
+    request: {
+      input: {
+        uri: "memory://fixtures/legacy.raml",
+        content: `${prefix}/one:\n  post:\n${body}/two:\n  post:\n${body}`,
+        generated: false,
       },
-    });
-  }
+      files: {},
+      config: { limits: { maxNodes: 600 } },
+    },
+  });
   return cases;
 }

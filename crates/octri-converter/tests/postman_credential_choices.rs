@@ -335,32 +335,6 @@ fn authored_noauth_supports_every_target_without_weakening_review()
 }
 
 #[test]
-fn inherited_choice_metadata_shares_a_bounded_report_budget()
--> Result<(), Box<dyn std::error::Error>> {
-    let mut input = request();
-    let mut source: Value = serde_json::from_str(input.input.content.as_deref().ok_or("content")?)?;
-    source["items"]=json!((0..20).map(|index|json!({"$kind":"http-request","name":format!("Request {index}"),"method":"GET","url":format!("https://api.example.test/{index}")})).collect::<Vec<_>>());
-    input.input.content = Some(source.to_string());
-    input.config.limits.max_decisions = 8;
-    let report = convert(&input)?;
-    assert_eq!(report.status, Status::Blocked);
-    assert!(!report.handoff_allowed);
-    let units: usize = report
-        .credential_selection_requests
-        .iter()
-        .map(|request| 1 + request.choices.len())
-        .sum();
-    assert!(units <= 8);
-    assert!(
-        report
-            .checks
-            .iter()
-            .any(|check| check.id == "fidelity-coverage" && check.status == "failed")
-    );
-    Ok(())
-}
-
-#[test]
 fn long_inherited_labels_cannot_multiply_report_bytes() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = request();
     let mut source: Value = serde_json::from_str(input.input.content.as_deref().ok_or("content")?)?;
@@ -429,11 +403,13 @@ fn large_inherited_arrays_stop_expanding_after_budget_exhaustion()
     source["auth"] = json!((0..128).map(|index| json!({"id":format!("set-{index}"),"type":"bearer","credentials":[{"key":"token","value":"s".repeat(4096)}],"rules":[{"key":"url","value":format!("https://api.example.test/{index}/*")}]})).collect::<Vec<_>>());
     source["items"] = json!((0..256).map(|index| json!({"$kind":"http-request","name":format!("Request {index}"),"method":"GET","url":format!("https://api.example.test/{index}")})).collect::<Vec<_>>());
     input.input.content = Some(source.to_string());
-    input.config.limits.max_decisions = 16;
+    let full = convert(&input)?;
+    assert_eq!(full.credential_selection_requests.len(), 256);
+    // Room for the converted document, not for 256 requests x 128 choices.
+    input.config.limits.max_output_bytes = 2 * full.output.ok_or("output")?.content.len();
     let report = convert(&input)?;
     assert_eq!(report.status, Status::Blocked);
-    assert!(report.credential_selection_requests.is_empty());
-    assert!(report.decisions.len() <= 16);
+    assert!(report.credential_selection_requests.len() < 256);
     assert!(!report.handoff_allowed);
     assert!(
         report

@@ -274,28 +274,21 @@ fn authored_response_schema_and_exact_numbers_survive() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn derived_schema_admission_bounds_nodes_and_documents() -> Result<(), Box<dyn std::error::Error>> {
-    for nodes in [false, true] {
-        let mut input = request(
-            json!({"$schema":"https://json-schema.org/draft/2020-12/schema","enum":(0..400).collect::<Vec<_>>()}),
-            json!(1),
-        );
-        let mut source: Value =
-            serde_json::from_str(input.input.content.as_deref().ok_or("source")?)?;
-        let mut second = source["items"][0].clone();
-        second["url"] = json!("https://api.example.test/second");
-        source["items"].as_array_mut().ok_or("items")?.push(second);
-        input.input.content = Some(source.to_string());
-        if nodes {
-            input.config.limits.max_nodes = 600;
-        } else {
-            input.config.limits.max_documents = 1;
-        }
-        assert_eq!(
-            convert(&input).err().ok_or("derived budget ignored")?.code,
-            "SCHEMA_DERIVED_LIMIT"
-        );
-    }
+fn derived_schema_admission_bounds_nodes() -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = request(
+        json!({"$schema":"https://json-schema.org/draft/2020-12/schema","enum":(0..400).collect::<Vec<_>>()}),
+        json!(1),
+    );
+    let mut source: Value = serde_json::from_str(input.input.content.as_deref().ok_or("source")?)?;
+    let mut second = source["items"][0].clone();
+    second["url"] = json!("https://api.example.test/second");
+    source["items"].as_array_mut().ok_or("items")?.push(second);
+    input.input.content = Some(source.to_string());
+    input.config.limits.max_nodes = 600;
+    assert_eq!(
+        convert(&input).err().ok_or("derived budget ignored")?.code,
+        "SCHEMA_DERIVED_LIMIT"
+    );
     Ok(())
 }
 

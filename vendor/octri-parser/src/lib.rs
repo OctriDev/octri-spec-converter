@@ -6,7 +6,6 @@
 
 mod bundle;
 mod defaults;
-mod diagnostics;
 mod graph;
 mod inspect;
 pub mod numbers;
@@ -31,14 +30,12 @@ pub use types::*;
 /// Decode bounded JSON/YAML without requiring an OpenAPI version declaration.
 /// This is the same strict syntax reader used by the OpenAPI operations.
 pub fn parse_source(uri: &str, text: String, limits: &Limits) -> Result<SourceDocument> {
-    limits.check()?;
-    source::parse(uri, text, limits)
+    source::read(uri, text, limits, true, SourceFormat::Auto)
 }
 
 /// Decode RAML syntax, retaining `!include` declarations as strings plus a
 /// pointer-indexed include table. No included resource is read or executed.
 pub fn parse_raml_source(uri: &str, text: String, limits: &Limits) -> Result<SyntaxDocument> {
-    limits.check()?;
     source::parse_raml(uri, text, limits)
 }
 
@@ -55,42 +52,12 @@ pub fn bundle_sources(
 }
 
 /// Bundle JSON Schema roots embedded in foreign documents into an OpenAPI 3.1+
-/// envelope. The envelope refers to the physical roots by URI and JSON Pointer.
-/// Only declared roots and schema reference targets are interpreted as schemas;
-/// other foreign fields, examples and RAML include declarations remain inert.
-/// Source files must be supplied explicitly or through the caller's resolver.
-pub fn bundle_schema_sources(
-    input: Input,
-    schema_roots: Vec<Address>,
-    options: Options,
-    resolver: &mut dyn Resolver,
-) -> Result<BundledSource> {
-    bundle_schema_registry_sources(input, schema_roots, Vec::new(), options, resolver)
-}
-
-/// Bundle selected foreign schemas with an available component registry.
-/// Registry roots establish resource IDs and anchors, but only selected roots
-/// and their transitive schema dependencies are resolved and emitted. Duplicate
-/// or malformed resource identifiers remain errors in the supplied registry.
-pub fn bundle_schema_registry_sources(
-    input: Input,
-    schema_roots: Vec<Address>,
-    registry_roots: Vec<Address>,
-    options: Options,
-    resolver: &mut dyn Resolver,
-) -> Result<BundledSource> {
-    bundle_schema_registry_with_dialects(
-        input,
-        schema_roots.into_iter().map(SchemaRoot::from).collect(),
-        registry_roots.into_iter().map(SchemaRoot::from).collect(),
-        options,
-        resolver,
-    )
-}
-
-/// Bundle foreign schemas using their declared format's default dialect.
-/// Unlike editing `$schema` into virtual files, hints preserve source hashes,
-/// locations, and the containing document's reference scope.
+/// envelope that refers to the physical roots by URI and JSON Pointer. Only
+/// declared roots and schema reference targets are interpreted as schemas;
+/// other foreign fields, examples and RAML include declarations stay inert.
+/// Registry roots establish resource IDs and anchors, but only `schema_roots`
+/// and their transitive dependencies are resolved and emitted. Each root's
+/// dialect hint preserves source hashes, locations and reference scope.
 pub fn bundle_schema_registry_with_dialects(
     input: Input,
     schema_roots: Vec<SchemaRoot>,
@@ -104,10 +71,7 @@ pub fn bundle_schema_registry_with_dialects(
         return Err(ParserError::new(
             "INVALID_SCHEMA_ENVELOPE",
             "Foreign schema bundles require an OpenAPI 3.1 or later envelope",
-            Address {
-                uri: session.root_uri.clone(),
-                pointer: String::new(),
-            },
+            Address::root(&session.root_uri),
         ));
     }
     session.schema_mode = true;
@@ -187,10 +151,7 @@ pub fn execute_document(request: Request, resolver: &mut dyn Resolver) -> Result
         return Err(ParserError::new(
             "INVALID_OPERATION",
             "Use execute for report and inventory operations",
-            Address {
-                uri: request.input.uri,
-                pointer: String::new(),
-            },
+            Address::root(request.input.uri),
         ));
     }
     let report = execute_inner(request, resolver, false)?;
@@ -286,12 +247,7 @@ fn run(
         operation,
         Operation::Parse | Operation::Resolve | Operation::Inspect | Operation::Analyze
     ) {
-        report.document = session
-            .value(&Address {
-                uri: session.root_uri.clone(),
-                pointer: String::new(),
-            })
-            .cloned();
+        report.document = session.value(&Address::root(&session.root_uri)).cloned();
     }
     if operation == Operation::Parse {
         if let Some(document) = &report.document {

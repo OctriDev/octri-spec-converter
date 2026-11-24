@@ -4,7 +4,6 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildJniBridge, findJavaHome, libraryFile } from "./native-build.mjs";
-import { rustEnvironment } from "./toolchain.mjs";
 
 const platform = `${process.platform}-${process.arch}`;
 assert(
@@ -12,7 +11,7 @@ assert(
   `Unsupported native target: ${platform}`,
 );
 const run = (command, args) =>
-  execFileSync(command, args, { stdio: "inherit", env: rustEnvironment() });
+  execFileSync(command, args, { stdio: "inherit" });
 const output = resolve("artifacts/native", platform);
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
@@ -38,8 +37,7 @@ if (process.platform === "darwin")
 // Apple's strip corrupts the archive's assembly objects, so macOS uses the
 // toolchain's LLVM objcopy. Linux uses binutils objcopy: the toolchain's copy
 // needs a libLLVM that minimal Rust installs leave out.
-const rustc = (args) =>
-  execFileSync("rustc", args, { encoding: "utf8", env: rustEnvironment() });
+const rustc = (args) => execFileSync("rustc", args, { encoding: "utf8" });
 const darwin = process.platform === "darwin";
 const objcopy = darwin
   ? join(

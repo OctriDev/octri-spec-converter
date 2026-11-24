@@ -1,12 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { rustEnvironment } from "./toolchain.mjs";
 
 execFileSync(
   "cargo",
   ["build", "--release", "--locked", "-p", "octri-converter-node"],
-  { stdio: "inherit", env: rustEnvironment() },
+  { stdio: "inherit" },
 );
 const name =
   process.platform === "darwin"

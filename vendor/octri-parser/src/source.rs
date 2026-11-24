@@ -1,9 +1,7 @@
 //! Strict JSON/YAML loading with bounded aliases and source locations.
 
-mod generated;
+pub(crate) mod generated;
 mod json;
-pub(crate) use generated::parse as parse_generated;
-pub(crate) use generated::parse_document as parse_generated_document;
 
 use crate::pointer::child;
 use crate::{
@@ -17,19 +15,7 @@ use yaml_rust2::{
     scanner::{Marker, TScalarStyle},
 };
 
-pub(crate) fn parse(uri: &str, text: String, limits: &Limits) -> Result<SourceDocument> {
-    read(uri, text, limits, true)
-}
-
-pub(crate) fn parse_document(uri: &str, text: String, limits: &Limits) -> Result<SourceDocument> {
-    read(uri, text, limits, false)
-}
-
-fn read(uri: &str, text: String, limits: &Limits, locations: bool) -> Result<SourceDocument> {
-    read_with_format(uri, text, limits, locations, SourceFormat::Auto)
-}
-
-pub(crate) fn read_with_format(
+pub(crate) fn read(
     uri: &str,
     text: String,
     limits: &Limits,
@@ -51,10 +37,7 @@ fn read_syntax(
     raml: bool,
     format: SourceFormat,
 ) -> Result<SyntaxDocument> {
-    let address = Address {
-        uri: uri.into(),
-        pointer: String::new(),
-    };
+    let address = Address::root(uri);
     if text.len() > limits.max_document_bytes {
         return Err(ParserError::new(
             "LIMIT_DOCUMENT_BYTES",
@@ -92,8 +75,6 @@ fn read_syntax(
         parser: Parser::new_from_str(&text),
         uri,
         limits,
-        nodes: 0,
-        aliases: 0,
         copied_bytes: 0,
         anchors: BTreeMap::new(),
         locations: BTreeMap::new(),
@@ -147,8 +128,6 @@ struct Reader<'a> {
     parser: Parser<std::str::Chars<'a>>,
     uri: &'a str,
     limits: &'a Limits,
-    nodes: usize,
-    aliases: usize,
     copied_bytes: usize,
     anchors: BTreeMap<usize, Value>,
     locations: BTreeMap<String, Location>,
@@ -194,10 +173,6 @@ impl Reader<'_> {
                 pointer,
                 mark,
             ));
-        }
-        self.nodes += 1;
-        if self.nodes > self.limits.max_nodes {
-            return Err(self.error("LIMIT_NODES", "Document exceeds node limit", pointer, mark));
         }
         if self.capture_locations {
             self.locations.insert(
@@ -299,15 +274,6 @@ impl Reader<'_> {
                 (Value::Array(values), anchor)
             }
             Event::Alias(anchor) => {
-                self.aliases += 1;
-                if self.aliases > self.limits.max_aliases {
-                    return Err(self.error(
-                        "LIMIT_ALIASES",
-                        "YAML alias limit exceeded",
-                        pointer,
-                        mark,
-                    ));
-                }
                 let value = self.anchors.get(&anchor).ok_or_else(|| {
                     self.error(
                         "INVALID_ALIAS",
@@ -316,13 +282,10 @@ impl Reader<'_> {
                         mark,
                     )
                 })?;
-                let (nodes, extra_depth) = value_size(value);
-                if self.nodes.saturating_add(nodes) > self.limits.max_nodes
-                    || depth.saturating_add(extra_depth) > self.limits.max_depth
-                {
+                if depth + value_depth(value) > self.limits.max_depth {
                     return Err(self.error(
-                        "LIMIT_NODES",
-                        "Expanded alias exceeds document limits",
+                        "LIMIT_DEPTH",
+                        "Expanded alias exceeds nesting limit",
                         pointer,
                         mark,
                     ));
@@ -342,7 +305,6 @@ impl Reader<'_> {
                     )
                 })?;
                 self.copied_bytes += bytes;
-                self.nodes += nodes;
                 if let Some(includes) = self.anchor_includes.get(&anchor).cloned() {
                     for (suffix, target) in includes {
                         self.includes.insert(format!("{pointer}{suffix}"), target);
@@ -402,12 +364,10 @@ impl Reader<'_> {
     }
 }
 
-pub(crate) fn value_size(value: &Value) -> (usize, usize) {
-    let mut count = 0;
+pub(crate) fn value_depth(value: &Value) -> usize {
     let mut depth = 0;
     let mut queue = vec![(value, 0)];
     while let Some((value, current)) = queue.pop() {
-        count += 1;
         depth = depth.max(current);
         match value {
             Value::Object(map) => queue.extend(map.values().map(|v| (v, current + 1))),
@@ -415,7 +375,7 @@ pub(crate) fn value_size(value: &Value) -> (usize, usize) {
             _ => {}
         }
     }
-    (count, depth)
+    depth
 }
 
 fn scalar(text: &str) -> std::result::Result<Value, &'static str> {
@@ -448,10 +408,7 @@ fn scalar(text: &str) -> std::result::Result<Value, &'static str> {
 }
 
 pub(crate) fn detect(value: &Value, uri: &str) -> Result<Dialect> {
-    let at = Address {
-        uri: uri.into(),
-        pointer: String::new(),
-    };
+    let at = Address::root(uri);
     if !value.is_object() {
         return Err(ParserError::new(
             "INVALID_DOCUMENT",

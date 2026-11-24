@@ -236,23 +236,17 @@ fn serialized_schema_budgets_bound_distinct_resources_and_allow_reuse()
     );
     let prefix =
         "#%RAML 0.8\ntitle: Bounded schemas\nversion: v1\nbaseUri: https://api.example.test\n";
-    for node_budget in [true, false] {
-        let mut input = request(&format!(
-            "{prefix}/one:\n  post:\n{body}/two:\n  post:\n{body}"
-        ));
-        if node_budget {
-            input.config.limits.max_nodes = 600;
-        } else {
-            input.config.limits.max_documents = 1;
-        }
-        let error = convert(&input).err().ok_or("derived budget exceeded")?;
-        assert_eq!(error.code, "SCHEMA_DERIVED_LIMIT");
-    }
+    let mut input = request(&format!(
+        "{prefix}/one:\n  post:\n{body}/two:\n  post:\n{body}"
+    ));
+    input.config.limits.max_nodes = 600;
+    let error = convert(&input).err().ok_or("derived budget exceeded")?;
+    assert_eq!(error.code, "SCHEMA_DERIVED_LIMIT");
     let shared_body = body.replace(&format!("schema: {quoted}"), "schema: Shared");
     let mut input = request(&format!(
         "{prefix}schemas:\n  - Shared: {quoted}\n/one:\n  post:\n{shared_body}/two:\n  post:\n{shared_body}"
     ));
-    input.config.limits.max_documents = 1;
+    input.config.limits.max_nodes = 600;
     let report = convert(&input)?;
     assert!(report.valid, "{:?}", report.diagnostics);
     assert_eq!(report.status, Status::Complete, "{:?}", report.decisions);

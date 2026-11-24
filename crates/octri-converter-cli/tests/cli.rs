@@ -46,7 +46,7 @@ fn stdin_abi_and_human_help_remain_distinct() -> Result {
     );
     assert!(String::from_utf8(help.stdout)?.contains("--root-dir"));
     assert_eq!(
-        command(temp.path(), &["formats", "--timeout-ms", "30001"])?
+        command(temp.path(), &["formats", "--timeout-ms", "0"])?
             .status
             .code(),
         Some(2)

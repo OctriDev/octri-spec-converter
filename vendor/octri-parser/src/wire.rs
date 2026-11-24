@@ -5,68 +5,38 @@ use crate::{Address, Limits, ParserError, Request, Result};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-const MAX_REQUEST_BYTES: usize = 128 * 1024 * 1024;
+pub const MAX_REQUEST_BYTES: usize = 128 * 1024 * 1024;
+const MAX_TRANSPORT_DEPTH: usize = 256;
+const ENCODE_FAILURE: &str =
+    r#"{"Err":{"message":"Cannot encode parser result","diagnostics":[]}}"#;
 pub(crate) const RESERVED_NUMBER_KEY: &str = "$serde_json::private::Number";
 
-/// Reject serde_json's reserved arbitrary-number transport key before decoding.
-/// Without this guard, that literal object key can be mistaken for a number.
-/// Source content inside a JSON string is checked when that source is parsed.
-pub fn check_json_keys(uri: &str, text: &str) -> Result<()> {
+/// Reject serde_json's reserved arbitrary-number transport key before decoding;
+/// without this, that literal object key can be mistaken for a number. Source
+/// content inside a JSON string is checked when that source is parsed.
+/// Returns the deepest container nesting so transport decoding can refuse
+/// input that would overflow serde's recursion.
+pub(crate) fn scan(uri: &str, text: &str) -> Result<usize> {
     let bytes = text.as_bytes();
     let mut offset = 0;
     let mut depth = 0usize;
-    let mut tokens = 0usize;
+    let mut deepest = 0;
     while offset < bytes.len() {
         match bytes[offset] {
             b'{' | b'[' => {
                 depth += 1;
-                tokens += 1;
+                deepest = deepest.max(depth);
                 offset += 1;
             }
             b'}' | b']' => {
                 depth = depth.saturating_sub(1);
                 offset += 1;
             }
-            b',' | b':' | b' ' | b'\t' | b'\r' | b'\n' => {
-                offset += 1;
-            }
             b'"' => {}
-            _ => {
-                tokens += 1;
-                while offset < bytes.len()
-                    && !bytes[offset].is_ascii_whitespace()
-                    && !matches!(
-                        bytes[offset],
-                        b',' | b'}' | b']' | b'{' | b'[' | b':' | b'"'
-                    )
-                {
-                    offset += 1;
-                }
-            }
-        }
-        if depth > 256 || tokens > 4_000_000 {
-            return Err(ParserError::new(
-                "LIMIT_TRANSPORT_STRUCTURE",
-                "JSON transport exceeds 256 nesting levels or 4000000 tokens",
-                Address {
-                    uri: uri.into(),
-                    pointer: String::new(),
-                },
-            ));
+            _ => offset += 1,
         }
         if bytes.get(offset) != Some(&b'"') {
             continue;
-        }
-        tokens += 1;
-        if tokens > 4_000_000 {
-            return Err(ParserError::new(
-                "LIMIT_TRANSPORT_STRUCTURE",
-                "JSON transport exceeds 4000000 tokens",
-                Address {
-                    uri: uri.into(),
-                    pointer: String::new(),
-                },
-            ));
         }
         let start = offset;
         offset += 1;
@@ -92,29 +62,24 @@ pub fn check_json_keys(uri: &str, text: &str) -> Result<()> {
             let mut error = ParserError::new(
                 "UNSAFE_KEY",
                 "Reserved JSON numeric transport key; rename this field before conversion",
-                Address {
-                    uri: uri.into(),
-                    pointer: String::new(),
-                },
+                Address::root(uri),
             );
-            if let Some(diagnostic) = error.diagnostics.first_mut() {
-                diagnostic.location.offset = Some(start);
-                diagnostic.location.line =
-                    Some(text[..start].bytes().filter(|byte| *byte == b'\n').count() + 1);
-                diagnostic.location.column = Some(
-                    text[..start]
-                        .rsplit('\n')
-                        .next()
-                        .unwrap_or("")
-                        .chars()
-                        .count()
-                        + 1,
-                );
-            }
+            let location = &mut error.diagnostics[0].location;
+            location.offset = Some(start);
+            location.line = Some(text[..start].matches('\n').count() + 1);
+            location.column = Some(
+                text[..start]
+                    .rsplit('\n')
+                    .next()
+                    .unwrap_or("")
+                    .chars()
+                    .count()
+                    + 1,
+            );
             return Err(error);
         }
     }
-    Ok(())
+    Ok(deepest)
 }
 
 /// Decode a bounded binding/report envelope with room for the source document's
@@ -124,72 +89,58 @@ pub fn decode_json<T: DeserializeOwned>(uri: &str, text: &str) -> Result<T> {
         return Err(ParserError::new(
             "LIMIT_REQUEST_BYTES",
             "JSON transport exceeds 128 MiB",
-            Address {
-                uri: uri.into(),
-                pointer: String::new(),
-            },
+            Address::root(uri),
         ));
     }
-    check_json_keys(uri, text)?;
+    if scan(uri, text)? > MAX_TRANSPORT_DEPTH {
+        return Err(ParserError::new(
+            "LIMIT_DEPTH",
+            "JSON transport exceeds 256 nesting levels",
+            Address::root(uri),
+        ));
+    }
     let mut decoder = serde_json::Deserializer::from_str(text);
+    // scan() bounded the depth, which serde's own 128-level limit would cut short.
     decoder.disable_recursion_limit();
     let value = T::deserialize(&mut decoder).and_then(|value| decoder.end().map(|()| value));
-    value.map_err(|error| {
-        ParserError::new(
-            "INVALID_JSON",
-            error.to_string(),
-            Address {
-                uri: uri.into(),
-                pointer: String::new(),
-            },
-        )
-    })
+    value.map_err(|error| ParserError::new("INVALID_JSON", error.to_string(), Address::root(uri)))
 }
 
 pub fn request(text: &str) -> Result<Request> {
-    check_size(text)?;
-    decode_json("", text)
-        .map_err(|error| ParserError::new("INVALID_REQUEST", error.to_string(), Address::default()))
-}
-
-pub fn serialize_document(text: &str, format: &str, limits: &str) -> String {
-    let result = (|| {
-        check_size(text)?;
-        let limits: Limits = serde_json::from_str(limits).map_err(|error| {
-            ParserError::new("INVALID_OPTIONS", error.to_string(), Address::default())
-        })?;
-        let document: Value = decode_json("", text).map_err(|error| {
-            ParserError::new("INVALID_JSON", error.to_string(), Address::default())
-        })?;
-        match format {
-            "json" => crate::serialize(&document, &limits),
-            "yaml" => crate::serialize_yaml(&document, &limits),
-            _ => Err(ParserError::new(
-                "INVALID_OUTPUT_FORMAT",
-                "Expected json or yaml output format",
-                Address::default(),
-            )),
+    decode_json("", text).map_err(|mut error| {
+        let diagnostic = &mut error.diagnostics[0];
+        if diagnostic.code == "INVALID_JSON" {
+            diagnostic.code = "INVALID_REQUEST".into();
         }
-    })();
-    encode(result)
-}
-
-pub fn encode<T: Serialize>(result: Result<T>) -> String {
-    serde_json::to_string(&result).unwrap_or_else(|_| {
-        r#"{"Err":{"message":"Cannot encode parser result","diagnostics":[]}}"#.into()
+        error
     })
 }
 
-fn check_size(text: &str) -> Result<()> {
-    if text.len() > MAX_REQUEST_BYTES {
-        return Err(ParserError::new(
-            "LIMIT_REQUEST_BYTES",
-            "Binding request exceeds 128 MiB",
+pub fn serialize_document(text: &str, format: &str, limits: &str) -> String {
+    encode(
+        serde_json::from_str(limits)
+            .map_err(|error| {
+                ParserError::new("INVALID_OPTIONS", error.to_string(), Address::default())
+            })
+            .and_then(|limits| serialize_with(text, format, &limits)),
+    )
+}
+
+pub fn serialize_with(text: &str, format: &str, limits: &Limits) -> Result<String> {
+    let document: Value = decode_json("", text)?;
+    match format {
+        "json" => crate::serialize(&document, limits),
+        "yaml" => crate::serialize_yaml(&document, limits),
+        _ => Err(ParserError::new(
+            "INVALID_OUTPUT_FORMAT",
+            "Expected json or yaml output format",
             Address::default(),
-        ));
+        )),
     }
-    check_json_keys("", text)?;
-    Ok(())
+}
+
+pub fn encode<T: Serialize>(result: Result<T>) -> String {
+    serde_json::to_string(&result).unwrap_or_else(|_| ENCODE_FAILURE.into())
 }
 
 /// Encode binding-only location tables without repeating each source URI and
@@ -216,13 +167,11 @@ fn encode_ascii<T: Serialize>(result: Result<T>) -> String {
     let mut bytes = Vec::new();
     let mut serializer = serde_json::Serializer::with_formatter(&mut bytes, AsciiFormatter);
     if result.serialize(&mut serializer).is_err() {
-        return r#"{"Err":{"message":"Cannot encode parser result","diagnostics":[]}}"#.into();
+        return ENCODE_FAILURE.into();
     }
     // serde_json writes valid UTF-8; this formatter replaces non-ASCII scalars
     // only with standard ASCII JSON escapes. Keep the checked conversion here.
-    String::from_utf8(bytes).unwrap_or_else(|_| {
-        r#"{"Err":{"message":"Cannot encode parser result","diagnostics":[]}}"#.into()
-    })
+    String::from_utf8(bytes).unwrap_or_else(|_| ENCODE_FAILURE.into())
 }
 
 struct AsciiFormatter;

@@ -21,7 +21,7 @@ jobs:
           node-version: "24"
       - run: npm ci --ignore-scripts
       - run: npm run build:node
-      - run: node scripts/cargo.mjs build --release --locked -p octri-converter-cli
+      - run: cargo build --release --locked -p octri-converter-cli
       - run: npm run test:node
       - run: node scripts/package-node-native.mjs
       - run: node scripts/test-node-native-package.mjs

@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RULESET_VERSION: &str = "1.0.3";
 pub const REPORT_VERSION: &str = "1.0.0";
-pub const MAX_ENVELOPE_BYTES: usize = 128 * 1024 * 1024;
+pub const MAX_ENVELOPE_BYTES: usize = octri_parser::wire::MAX_REQUEST_BYTES;
 
 // Computed scores are bounded binary floats, unlike user-authored JSON numbers.
 // Decode through Value so internally tagged transport enums preserve serde_json's
@@ -66,7 +66,6 @@ pub struct Config {
     pub fail_on: Severity,
     /// A caller-supplied date makes expiring exclusions deterministic in CI.
     pub as_of: Option<String>,
-    pub max_findings: usize,
 }
 
 impl Default for Config {
@@ -82,7 +81,6 @@ impl Default for Config {
             fail_on_new: false,
             fail_on: Severity::High,
             as_of: None,
-            max_findings: 5000,
         }
     }
 }
@@ -99,7 +97,6 @@ pub struct RuleSetting {
 pub struct AuditLimits {
     pub max_document_bytes: usize,
     pub max_total_bytes: usize,
-    pub max_documents: usize,
     pub max_nodes: usize,
     pub max_depth: usize,
 }
@@ -108,7 +105,6 @@ impl Default for AuditLimits {
         Self {
             max_document_bytes: 5 * 1024 * 1024,
             max_total_bytes: 20 * 1024 * 1024,
-            max_documents: 100,
             max_nodes: 300_000,
             max_depth: 64,
         }
@@ -119,12 +115,9 @@ impl AuditLimits {
         octri_parser::Limits {
             max_document_bytes: self.max_document_bytes,
             max_total_bytes: self.max_total_bytes,
-            max_documents: self.max_documents,
             max_nodes: self.max_nodes,
             max_depth: self.max_depth,
-            max_aliases: 64,
-            max_output_bytes: 64 * 1024 * 1024,
-            max_diagnostics: 1000,
+            ..octri_parser::Limits::default()
         }
     }
 }
@@ -321,14 +314,21 @@ pub struct AuditReport {
     pub coverage: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
-#[error("{message}")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditError {
     pub code: String,
     pub message: String,
     #[serde(default)]
     pub diagnostics: Vec<Diagnostic>,
 }
+
+impl std::fmt::Display for AuditError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for AuditError {}
 
 impl AuditError {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
